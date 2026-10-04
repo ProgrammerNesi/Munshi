@@ -110,29 +110,29 @@ There is no React build, hosted database, external asset CDN, or cloud API requi
 ```mermaid
 sequenceDiagram
     participant P as Pipeline
-    participant A as Agent loop (Gemma via Ollama)
-    participant T as Validated tools / SQLite context
-    participant R as Deterministic rulebook
+    participant A as Local agent
+    participant T as Read only tools
+    participant R as Rulebook
     participant E as Order engine
-    participant O as Owner/customer
+    participant H as Human
 
-    P->>R: Compute baseline from resolved lines, stock, customer and rules
-    P->>A: Send compact context and allowed tool schemas
-    loop At most 6 model responses
-        A->>T: Optional history/catalog/stock inspection
-        T-->>A: Bounded results
-        A->>T: Optional resolve_line or evaluate_rules
-        T-->>A: Validated result and refreshed rulebook verdict
+    P->>R: Evaluate resolved order facts
+    P->>A: Send order context and allowed tools
+    loop Up to six model responses
+        A->>T: Request catalog history or stock facts
+        T-->>A: Return bounded local data
+        A->>T: Resolve a line or recheck rules
+        T-->>A: Return validated result
     end
-    A->>P: Exactly one proposed action (or fallback)
-    P->>R: Enforce strictest deterministic action
-    R-->>P: Canonical action and human-readable reasons
-    P->>E: Request state transition
-    E->>E: Validate transition; write stock/order/event changes
+    A->>P: Propose one action or fall back
+    P->>R: Enforce the rulebook verdict
+    R-->>P: Return final action and reasons
+    P->>E: Request an order state change
+    E->>E: Validate and record the transition
     alt Customer clarification or owner approval required
-        E->>O: Ask customer or notify owner
+        E->>H: Ask customer or notify owner
     else Routine order
-        E->>O: Send bill/status and tracking link
+        E->>H: Send bill status and tracking link
     end
 ```
 
