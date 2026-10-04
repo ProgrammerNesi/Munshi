@@ -1,0 +1,12 @@
+# DEMO DATA — fake customers for local testing only. Not real people/shops.
+id,name,phone,area,credit_limit,outstanding,is_new,usual_basket
+1,Ramesh Kirana,9800000001,Bairagarh,20000,4500,0,Sugar:20|Wheat Flour (Atta):30|Mustard Oil:10|Salt (Tata Namak):15|Tea (Chai Patti):5
+2,Sharma General Store,9800000002,Sadar,15000,1200,0,Basmati Rice:15|Toor Dal (Arhar):10|Refined Sunflower Oil:12|Sugar:10|Biscuits (Parle-G):20
+3,Khan Provision Store,9800000003,Jumerati,10000,0,0,Wheat Flour (Atta):25|Chana Dal:8|Mustard Oil:8|Red Chilli Powder:2|Turmeric Powder (Haldi):2
+4,Patel Traders,9800000004,MP Nagar,50000,18000,0,Sugar:50|Basmati Rice:30|Refined Sunflower Oil:25|Tea (Chai Patti):12|Detergent Powder:15|Bath Soap:40
+5,Gupta Store,9800000005,Arera Colony,5000,800,0,Parmal Rice:20|Masoor Dal:6|Salt (Tata Namak):10|Mustard Oil:5|Maggi Noodles:15
+6,Yadav Kirana,9800000006,Kolar,8000,2500,0,Wheat Flour (Atta):20|Moong Dal:6|Jaggery (Gud):5|Poha:8|Besan:6
+7,Singh General Store,9800000007,Lalghati,12000,0,0,Sugar:15|Urad Dal:6|Kabuli Chana:6|Rajma:5|Cumin Seeds (Jeera):1|Coriander Powder (Dhania):2
+8,Verma Provision (Cash Only),9800000008,Piplani,0,0,0,Salt (Tata Namak):8|Sooji (Rava):6|Maida:8|Biscuits (Parle-G):12|Garam Masala:4
+9,Iyer Mart,9800000009,Shahpura,30000,9500,0,Basmati Rice:20|Toor Dal (Arhar):12|Groundnut Oil:10|Tea (Chai Patti):8|Detergent Powder:10|Bath Soap:30
+10,Farhan Fresh Mart (New),9800000010,Karond,3000,0,1,Sugar:5|Salt (Tata Namak):5|Biscuits (Parle-G):10

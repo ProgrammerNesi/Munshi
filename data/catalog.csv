@@ -1,0 +1,31 @@
+id,name,aliases_json,unit,price,stock_qty,reorder_level
+1,Sugar,"[""cheeni"", ""chini"", ""shakkar"", ""sugar"", ""khand"", ""चीनी"", ""शक्कर""]",kg,45.0,500,50
+2,Wheat Flour (Atta),"[""atta"", ""gehu atta"", ""wheat flour"", ""aata"", ""आटा"", ""गेहूं आटा""]",kg,42.0,400,40
+3,Basmati Rice,"[""basmati"", ""basmati chawal"", ""chawal"", ""rice"", ""bawali"", ""बासमती चावल"", ""चावल""]",kg,95.0,300,30
+4,Parmal Rice,"[""parmal"", ""mota chawal"", ""common rice"", ""sasta chawal"", ""परमल चावल"", ""मोटा चावल""]",kg,55.0,350,35
+5,Toor Dal (Arhar),"[""toor dal"", ""arhar"", ""arhar dal"", ""toor"", ""तूर दाल"", ""अरहर""]",kg,165.0,200,20
+6,Moong Dal,"[""moong dal"", ""moong"", ""hari dal"", ""split moong"", ""मूंग दाल"", ""मूंग""]",kg,135.0,180,18
+7,Chana Dal,"[""chana dal"", ""bengal gram"", ""chana"", ""चना दाल"", ""चना""]",kg,95.0,200,20
+8,Urad Dal,"[""urad dal"", ""urad"", ""kali dal"", ""black gram"", ""उड़द दाल"", ""उड़द""]",kg,140.0,150,15
+9,Masoor Dal,"[""masoor"", ""masoor dal"", ""lal dal"", ""red lentil"", ""मसूर दाल"", ""मसूर""]",kg,110.0,180,18
+10,Kabuli Chana,"[""kabuli chana"", ""chhole"", ""chole"", ""white chana"", ""chana"", ""काबुली चना"", ""छोले""]",kg,110.0,150,15
+11,Rajma,"[""rajma"", ""kidney beans"", ""lal rajma"", ""राजमा""]",kg,130.0,120,12
+12,Mustard Oil,"[""sarso tel"", ""sarson tel"", ""mustard oil"", ""sarso oil"", ""kacha tel"", ""सरसों तेल"", ""तेल""]",litre,175.0,250,25
+13,Refined Sunflower Oil,"[""refined"", ""refined tel"", ""sunflower oil"", ""refined oil"", ""safola"", ""रिफाइंड तेल"", ""तेल""]",litre,145.0,300,30
+14,Groundnut Oil,"[""moongfali tel"", ""groundnut oil"", ""peanut oil"", ""sing tel"", ""मूंगफली तेल"", ""तेल""]",litre,180.0,150,15
+15,Tea (Chai Patti),"[""chai"", ""chai patti"", ""tea"", ""chay"", ""patti"", ""चाय"", ""चाय पत्ती""]",pack,260.0,200,20
+16,Salt (Tata Namak),"[""namak"", ""salt"", ""tata namak"", ""tata salt"", ""नमक"", ""टाटा नमक""]",kg,28.0,500,50
+17,Jaggery (Gud),"[""gud"", ""jaggery"", ""gur"", ""गुड़""]",kg,55.0,120,12
+18,Maida,"[""maida"", ""refined flour"", ""all purpose flour"", ""मैदा""]",kg,40.0,200,20
+19,Sooji (Rava),"[""sooji"", ""suji"", ""rava"", ""semolina"", ""सूजी"", ""रवा""]",kg,48.0,150,15
+20,Besan,"[""besan"", ""gram flour"", ""chana flour"", ""बेसन""]",kg,85.0,180,18
+21,Poha,"[""poha"", ""chivda"", ""flattened rice"", ""pohe"", ""पोहा"", ""चिवड़ा""]",kg,55.0,140,14
+22,Turmeric Powder (Haldi),"[""haldi"", ""turmeric"", ""haldi powder"", ""हल्दी""]",kg,240.0,100,10
+23,Red Chilli Powder,"[""mirch"", ""lal mirch"", ""chilli powder"", ""mirchi"", ""मिर्च"", ""लाल मिर्च""]",kg,380.0,90,9
+24,Coriander Powder (Dhania),"[""dhania"", ""coriander"", ""dhania powder"", ""धनिया""]",kg,280.0,90,9
+25,Cumin Seeds (Jeera),"[""jeera"", ""zeera"", ""cumin"", ""jeera dana"", ""जीरा""]",kg,420.0,70,7
+26,Detergent Powder,"[""surf"", ""detergent"", ""nirma"", ""washing powder"", ""vim powder"", ""सर्फ"", ""डिटर्जेंट""]",kg,120.0,220,22
+27,Bath Soap,"[""sabun"", ""soap"", ""nahane ka sabun"", ""lux"", ""bathing soap"", ""साबुन"", ""नहाने का साबुन""]",piece,42.0,400,40
+28,Biscuits (Parle-G),"[""biscuit"", ""parle"", ""parle-g"", ""glucose biscuit"", ""biskit"", ""बिस्कुट"", ""पारले""]",pack,25.0,350,35
+29,Maggi Noodles,"[""maggi"", ""noodles"", ""instant noodles"", ""मैगी"", ""नूडल्स""]",pack,56.0,300,30
+30,Garam Masala,"[""garam masala"", ""masala"", ""spice mix"", ""गरम मसाला"", ""मसाला""]",pack,65.0,130,13

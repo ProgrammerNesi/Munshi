@@ -1,0 +1,7 @@
+# DEMO DATA — fake staff for local testing only.
+id,name,role
+1,Suresh Agrawal,owner
+2,Raju Packer,packer
+3,Imran Packer,packer
+4,Mohan Delivery,delivery
+5,Sunny Delivery,delivery

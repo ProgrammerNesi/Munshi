@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Generated at runtime (rebuild with: python scripts/seed.py)
+data/munshi.db
