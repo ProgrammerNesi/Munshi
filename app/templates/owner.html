@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Munshi · Owner</title>
+<link rel="stylesheet" href="/static/owner.css">
+</head>
+<body>
+<header>
+  <div class="title">Munshi · Owner
+    <a class="briefbtn" href="/owner/briefing">☀ Briefing</a>
+  </div>
+  <div id="health" class="health"><span class="muted">checking health…</span></div>
+</header>
+
+<section id="needs" class="needs hidden" aria-live="polite"></section>
+
+<div id="demo-bar" hidden style="padding:10px 12px;background:#ede7f6;">
+  <b>Demo controls</b>
+  <div class="row">
+    <button id="demo-skip" class="big">Skip +10 min</button>
+    <span id="demo-off" class="muted"></span>
+  </div>
+</div>
+
+<nav id="tabs">
+  <button data-tab="board" class="on">Board</button>
+  <button data-tab="khata">Khata</button>
+  <button data-tab="stock">Stock</button>
+  <button data-tab="rules">Rulebook</button>
+  <button data-tab="inbox">🔔 <span id="bell">0</span></button>
+</nav>
+
+<main>
+  <section id="tab-board" class="tab"></section>
+  <section id="tab-detail" class="tab hidden"></section>
+  <section id="tab-khata" class="tab hidden"></section>
+  <section id="tab-stock" class="tab hidden"></section>
+  <section id="tab-rules" class="tab hidden">
+    <p class="caption">Munshi follows these rules. Saving applies immediately.</p>
+    <textarea id="rules-text" rows="24" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="rules-save" class="big">Save rules</button>
+      <span id="rules-msg" class="muted"></span>
+    </div>
+  </section>
+  <section id="tab-inbox" class="tab hidden"></section>
+</main>
+
+<script src="/static/owner.js"></script>
+<script src="/static/demo.js"></script>
+</body>
+</html>

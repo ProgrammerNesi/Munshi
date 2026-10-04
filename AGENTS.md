@@ -54,3 +54,6 @@ prompts/{extract.txt,agent_system.txt,briefing.txt} · data/ · eval/ · tests/ 
 - Never invent data silently: seeded or fake data must be clearly marked in the seed scripts.
 - Keep functions small and commented. Prefer boring code.
 - mlx-whisper only installs on Apple Silicon: import it lazily so tests run anywhere.
+- Never call datetime.now() directly; use app/clock.py now(). In demo mode (MUNSHI_DEMO=1) the clock can be advanced and every portal shows a "DEMO CLOCK +N min" badge.
+- The supervisor is deterministic. It detects delays from rules.yaml SLAs and acts only through engine functions. No LLM is involved. Messages are templates.
+- Tracking links use unguessable tokens and never expose order ids, staff phones, other customers, balances or credit limits.

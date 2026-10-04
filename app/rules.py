@@ -30,6 +30,9 @@ class Decision:
 
     action: str
     reasons: list[str] = field(default_factory=list)
+    # Optional customer-facing question, filled only by the agent loop for
+    # ASK_CUSTOMER (validated there: <=160 chars, no invented numbers).
+    ask_text: str = ""
 
 
 def load_rules(path: str | Path | None = None) -> dict:
@@ -41,6 +44,28 @@ def load_rules(path: str | Path | None = None) -> dict:
 def rupees(amount: float) -> str:
     """Format a rupee amount for human sentences: 24300 -> ₹24,300."""
     return f"₹{amount:,.0f}"
+
+
+SUPERVISION_KEYS = ("packing_late", "ready_wait", "delivery_late",
+                    "escalation_gap")
+
+
+def supervision_minutes(rules: dict, demo: bool = False) -> dict[str, int]:
+    """SLA minutes for the supervisor. Validates; demo mode divides by 10.
+
+    Raises ValueError on missing/non-positive values so a bad edit fails
+    loudly instead of silently never (or always) firing.
+    """
+    section = (rules.get("supervision") or {})
+    out = {}
+    for key in SUPERVISION_KEYS:
+        value = section.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"supervision.{key} must be a number of minutes.")
+        if value <= 0:
+            raise ValueError(f"supervision.{key} must be above 0.")
+        out[key] = max(1, int(value / 10)) if demo else int(value)
+    return out
 
 
 def _usual_qty_by_item(customer: dict) -> dict[str, float]:

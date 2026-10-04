@@ -113,6 +113,21 @@ def chat(messages: list[dict], tools: list[dict] | None = None) -> tuple[str, fl
     """Plain chat (tools reserved for the agent loop). Returns (text, seconds)."""
     if mock_enabled():
         return _MOCK_CHAT, 0.0
+    msg, seconds = chat_with_tools(messages, tools)
+    return msg["content"], seconds
+
+
+def chat_with_tools(messages: list[dict],
+                    tools: list[dict] | None = None) -> tuple[dict, float]:
+    """chat() with native Ollama tool calling (used by the agent loop).
+
+    Returns (message, seconds) where message is
+    {"content": str, "tool_calls": [{"name": str, "arguments": dict}]}.
+    Malformed tool arguments raise LLMBadOutput; transport trouble raises
+    LLMUnavailable, exactly like the rest of this module.
+    """
+    if mock_enabled():
+        return {"content": _MOCK_CHAT, "tool_calls": []}, 0.0
     cfg = _config()
     started = time.perf_counter()
     payload: dict = {"model": cfg["model"], "messages": messages,
@@ -121,4 +136,19 @@ def chat(messages: list[dict], tools: list[dict] | None = None) -> tuple[str, fl
     if tools:
         payload["tools"] = tools
     body = _post("/api/chat", payload)
-    return body.get("message", {}).get("content", ""), time.perf_counter() - started
+    raw = body.get("message", {})
+    calls = []
+    for tc in raw.get("tool_calls", []) or []:
+        fn = tc.get("function", {}) if isinstance(tc, dict) else {}
+        args = fn.get("arguments", {})
+        if isinstance(args, str):  # some models serialise arguments
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError as e:
+                raise LLMBadOutput(
+                    f"Tool arguments are not JSON: {args[:120]!r}") from e
+        if not isinstance(args, dict):
+            raise LLMBadOutput(f"Tool arguments are not an object: {args!r}")
+        calls.append({"name": fn.get("name", ""), "arguments": args})
+    return {"content": raw.get("content") or "", "tool_calls": calls}, \
+        time.perf_counter() - started

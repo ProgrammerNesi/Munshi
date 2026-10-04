@@ -1,0 +1,38 @@
+/* Shared task-board styles: phone-first, big tap targets. */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #f4f1ea; }
+.home { max-width: 560px; margin: 0 auto; padding: 24px 16px 40px; text-align: center; }
+.home h1 { margin-bottom: 4px; }
+.roles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+.role { display: flex; flex-direction: column; gap: 6px; align-items: center;
+  font-size: 40px; padding: 24px 8px; border-radius: 14px; background: #fff;
+  color: inherit; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.role span { font-size: 17px; font-weight: 700; }
+.warm { background: #fff; border-radius: 12px; padding: 12px; text-align: left;
+  display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.warm .ok { color: #1d6f42; } .warm .bad { color: #b3261e; }
+.muted { color: #666; } .small { font-size: 13px; }
+.topbar { background: #1d2b23; color: #fff; padding: 12px; display: flex;
+  gap: 10px; align-items: center; position: sticky; top: 0; z-index: 5; }
+.topbar a { color: #fff; text-decoration: none; font-size: 20px; }
+.topbar h1 { font-size: 18px; margin: 0; }
+main.tasks { padding: 10px 12px 40px; max-width: 640px; margin: 0 auto; }
+.task { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.task h3 { margin: 0 0 6px; font-size: 17px; }
+.task table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.task td { padding: 6px 0; border-top: 1px solid #eee; }
+.task td:last-child { text-align: right; }
+.task input[type=number] { font-size: 18px; width: 90px; padding: 10px;
+  border-radius: 10px; border: 1px solid #ccc; }
+.row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+button.big { font-size: 17px; padding: 14px 18px; border-radius: 12px; border: 0;
+  background: #1d6f42; color: #fff; cursor: pointer; min-height: 56px; flex: 1; }
+button.big.warn { background: #b26a00; } button.big.bad { background: #b3261e; }
+button.big.ghost { background: #e4e0d8; color: #222; flex: 0 1 auto; }
+.empty { text-align: center; color: #666; padding: 30px 10px; font-size: 16px; }
+.banner { padding: 10px; text-align: center; font-size: 14px; background: #fff3cd; }
+.hidden { display: none !important; }
+.seg { display: flex; gap: 6px; margin: 8px 0; }
+.seg button { flex: 1; font-size: 16px; padding: 12px 4px; border-radius: 10px;
+  border: 2px solid #1d6f42; background: #fff; min-height: 52px; }
+.seg button.on { background: #1d6f42; color: #fff; }

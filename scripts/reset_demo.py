@@ -40,7 +40,8 @@ def reset_demo(db_path: str | Path | None = None) -> dict[str, int]:
         # Restart AUTOINCREMENT ids for demo tables.
         conn.execute(
             "DELETE FROM sqlite_sequence WHERE name IN"
-            " ('orders','order_lines','events','messages','notifications')"
+            " ('orders','order_lines','events','messages','notifications',"
+            " 'attention_items')"
         )
         # Restore snapshots from CSVs.
         for r in _read_csv(DATA / "catalog.csv"):

@@ -17,13 +17,15 @@ import argparse
 import csv
 import json
 import random
+import secrets
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from app import clock  # noqa: E402
 from app.db import DEMO_TABLES, get_conn, init_db, table_counts  # noqa: E402
 
 FAKE_SEED = 42
@@ -98,7 +100,7 @@ def seed(db_path: str | Path | None = None) -> dict[str, int]:
         # -- 30 days of FAKE history for established customers only --
         # New customers (is_new=1) get no history: they are new by definition.
         rng = random.Random(FAKE_SEED)
-        now = datetime.now(timezone.utc)
+        now = clock.now()
         packers = [2, 3]  # seeded staff ids with role packer
         deliverers = [4, 5]  # seeded staff ids with role delivery
         n_orders = 0
@@ -134,11 +136,13 @@ def seed(db_path: str | Path | None = None) -> dict[str, int]:
                 cur = conn.execute(
                     "INSERT INTO orders (customer_id, status, transcript,"
                     " total, payment_mode, packer_id, delivery_id,"
+                    " track_token, stage_entered_at,"
                     " created_at, updated_at)"
-                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (cid, "delivered", transcript, total,
                      rng.choice(["cash", "credit"]),
-                     rng.choice(packers), rng.choice(deliverers), iso, iso),
+                     rng.choice(packers), rng.choice(deliverers),
+                     secrets.token_urlsafe(16), iso, iso, iso),
                 )
                 oid = cur.lastrowid
                 for name, qty, price in priced:

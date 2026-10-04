@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Munshi — kaun bol raha hai?</title>
+<link rel="stylesheet" href="/static/tasks.css">
+</head>
+<body>
+<main class="home">
+  <h1>Munshi</h1>
+  <p class="muted">Apna role chuniye</p>
+  <div class="roles">
+    <a class="role" href="/customer/1">🧺<span>Customer</span></a>
+    <a class="role" href="/owner">🧾<span>Owner</span></a>
+    <a class="role" href="/packer">📦<span>Packer</span></a>
+    <a class="role" href="/delivery">🛵<span>Delivery</span></a>
+  </div>
+  <div id="warm" class="warm" aria-live="polite">
+    <div>🎙️ STT: <b id="w-stt">warming…</b></div>
+    <div>🧠 LLM: <b id="w-llm">warming…</b></div>
+    <div>Ollama: <b id="w-ollama">…</b></div>
+  </div>
+  <p class="muted small">Sab kuch is laptop par local chalta hai. Pehli request se pehle models warm ho rahe hain.</p>
+</main>
+<script src="/static/home.js"></script>
+<script src="/static/demo.js"></script>
+</body>
+</html>

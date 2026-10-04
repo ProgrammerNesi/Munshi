@@ -29,6 +29,15 @@ packing:
   # order locks for owner review. 0 = any difference locks dispatch.
   mismatch_tolerance: 0
 
+supervision:
+  # Minutes before the deterministic supervisor nudges a stuck order.
+  # L1 notifies the assigned staffer; L2 (after escalation_gap more minutes)
+  # loops in the owner and tells the customer. Demo mode divides all by 10.
+  packing_late: 20
+  ready_wait: 10
+  delivery_late: 45
+  escalation_gap: 15
+
 delivery:
   # Flat delivery fee, waived when the order subtotal reaches free_above.
   fee: 40

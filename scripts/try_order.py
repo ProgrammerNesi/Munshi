@@ -55,6 +55,8 @@ def main() -> None:
     ap.add_argument("--customer", type=int, default=1, help="customer id (default 1)")
     ap.add_argument("--stt-backend", default=None,
                     help="mlx_whisper|gemma_audio|mock (overrides env)")
+    ap.add_argument("--agent", action="store_true",
+                    help="also run the Phase 4B agent loop and print its trace")
     ap.add_argument("--db", default=None, help="sqlite path (default data/munshi.db)")
     args = ap.parse_args()
     if args.stt_backend:
@@ -98,6 +100,46 @@ def main() -> None:
         print(f"rulebook ({time.perf_counter() - t0:.1f}s): {decision.action}")
         for reason in decision.reasons:
             print(f"  - {reason}")
+
+    # Stage 4 (optional): agent loop with tool trace. Runs on a scratch copy
+    # so the agent's draft writes never touch the real database.
+    if args.agent and rule_lines and not draft.needs_retype:
+        from app import agent as agent_mod
+        from app import engine as engine_mod
+        from app.db import resolve_db_path
+        import shutil
+        import tempfile
+
+        real_db = resolve_db_path(args.db)
+        scratch = tempfile.mktemp(prefix="munshi_try_", suffix=".db")
+        shutil.copy(str(real_db), scratch)
+        try:
+            t0 = time.perf_counter()
+            oid = engine_mod.create_order_from_draft(
+                args.customer,
+                [{"item_id": ln.item_id, "qty": ln.qty} for ln in draft.lines
+                 if ln.item_id is not None and ln.qty is not None],
+                transcript, db_path=scratch)
+            res = agent_mod.run_agent(
+                oid, draft_lines=[ln.to_dict() for ln in draft.lines],
+                db_path=scratch)
+            print(f"agent ({time.perf_counter() - t0:.1f}s): kind={res.kind}"
+                  + (" (fallback: " + res.fallback_reason + ")"
+                     if res.used_fallback else ""))
+            for step in res.steps:
+                print(f"  step: {step}")
+            for tc in res.tool_calls:
+                print(f"  tool {tc['name']} {tc['args']} ->"
+                      f" {'ok' if tc['ok'] else 'ERROR'}:"
+                      f" {tc['result'][:160]} ({tc['seconds']}s)")
+            if res.text:
+                print(f"  text: {res.text}")
+        finally:
+            for suffix in ("", "-wal", "-shm", "-journal"):
+                try:
+                    Path(scratch + suffix).unlink()
+                except OSError:
+                    pass
     print(f"stage seconds: stt={stt_seconds:.1f}"
           f" extract={extract_seconds:.1f}")
 

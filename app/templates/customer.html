@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Munshi — {{ me.name }}</title>
+<link rel="stylesheet" href="/static/customer.css">
+</head>
+<body data-customer-id="{{ me.id }}">
+<header>
+  <div class="shop">Munshi · Wholesale</div>
+  <select id="who" aria-label="Customer">
+    {% for c in customers %}
+    <option value="{{ c.id }}" {% if c.id == me.id %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <div id="activity" class="activity hidden"><span class="dot"></span><span id="activity-label"></span></div>
+</header>
+
+<div id="busy" class="banner hidden">Munshi is busy — aapka message line me hai, thoda rukiye.</div>
+<div id="offline" class="banner hidden">Server se connect nahi ho raha — net check kijiye. Aapka message yahin likhkar bhej sakte hain, send dabate hi jayega.</div>
+<div id="toast" class="banner hidden"></div>
+
+<main id="chat" aria-live="polite"></main>
+<section id="orders"></section>
+
+<footer>
+  <div id="mic-hint" class="hidden">Mic nahi mila — neeche likhkar bhej dijiye, kaam chal jayega.</div>
+  <div class="bar">
+    <label class="icon-btn" title="Voice note file">📎
+      <input id="file" type="file" accept=".opus,.ogg,.m4a,.mp3,.wav,.webm,audio/*" hidden>
+    </label>
+    <input id="text" type="text" placeholder="Yahan likhiye: 2 kilo cheeni…" autocomplete="off">
+    <button id="send" class="icon-btn" title="Bhejo">➤</button>
+    <button id="mic" class="icon-btn mic" title="Dabaakar boliye">🎤</button>
+  </div>
+  <div class="hint">Mic dabaae rakhiye, chhodte hi bhej diya jayega.</div>
+</footer>
+
+<script src="/static/customer.js"></script>
+<script src="/static/demo.js"></script>
+</body>
+</html>

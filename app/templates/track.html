@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Munshi · Order tracking</title>
+<link rel="stylesheet" href="/static/tasks.css">
+</head>
+<body>
+<main class="tasks">
+  <div class="task">
+    <h3>Aapka order</h3>
+    <p style="font-size:18px">{{ status }}</p>
+    {% if eta_at %}<p class="muted">Lagbhag: {{ eta_at }}</p>{% endif %}
+    <table>
+      {% for it in items %}
+      <tr><td>{{ it.name }}</td><td>{{ it.qty }} {{ it.unit }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</main>
+<script src="/static/demo.js"></script>
+</body>
+</html>

@@ -19,10 +19,12 @@ credit sales add the bill to the customer's outstanding (khata) at delivery.
 
 from __future__ import annotations
 
+import secrets
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
+from app import messages as _messages
+from app import clock
 from app.db import get_conn
 from app.rules import (
     ASK_CUSTOMER,
@@ -85,8 +87,8 @@ class InvalidTransition(EngineError):
 # -- small helpers --------------------------------------------------------
 
 def _now() -> str:
-    """UTC timestamp for ts / updated_at columns."""
-    return datetime.now(timezone.utc).isoformat()
+    """Demo-aware timestamp for ts / updated_at columns."""
+    return clock.now().isoformat()
 
 
 def _rules(rules: dict | None) -> dict:
@@ -119,8 +121,9 @@ def _move(conn, order_id, to_state, actor, kind, message, data=None):
             f"Order #{order_id} cannot go {order['status']} -> {to_state}."
         )
     conn.execute(
-        "UPDATE orders SET status = ?, updated_at = ? WHERE id = ?",
-        (to_state, _now(), order_id),
+        "UPDATE orders SET status = ?, updated_at = ?, stage_entered_at = ?"
+        " WHERE id = ?",
+        (to_state, _now(), _now(), order_id),
     )
     _log(conn, order_id, actor, kind, message, data)
     return _get_order(conn, order_id)
@@ -176,6 +179,16 @@ def _notify(conn, role, staff_id, order_id, text, action_required=False) -> None
         "INSERT INTO notifications (role, staff_id, order_id, text,"
         " action_required, done, ts) VALUES (?,?,?,?,?,?,?)",
         (role, staff_id, order_id, text, int(action_required), 0, _now()),
+    )
+
+
+def _tell_customer(conn, order_id, text) -> None:
+    """Outbound chat message to the order's customer (status updates)."""
+    order = _get_order(conn, order_id)
+    conn.execute(
+        "INSERT INTO messages (customer_id, order_id, direction, text,"
+        " audio_path, ts) VALUES (?,?, 'out', ?, NULL, ?)",
+        (order["customer_id"], order_id, text, _now()),
     )
 
 
@@ -237,8 +250,10 @@ def create_order_from_draft(
         ts = _now()
         cur = conn.execute(
             "INSERT INTO orders (customer_id, status, transcript, total,"
-            " payment_mode, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-            (customer_id, NEW, transcript, total, payment_mode, ts, ts),
+            " payment_mode, track_token, stage_entered_at,"
+            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (customer_id, NEW, transcript, total, payment_mode,
+             secrets.token_urlsafe(16), ts, ts, ts),
         )
         order_id = cur.lastrowid
         for item, qty in priced:
@@ -384,6 +399,7 @@ def assign_staff(order_id: int, db_path=None) -> int:
               {"packer_id": packer_id})
         _notify(conn, "packer", packer_id, order_id,
                 f"Pack order #{order_id}.", action_required=True)
+        _tell_customer(conn, order_id, _messages.status_packing_started())
         conn.commit()
         return packer_id
     finally:
@@ -525,6 +541,9 @@ def start_delivery(order_id: int, delivery_id: int | None = None, db_path=None) 
         _move(conn, order_id, OUT_FOR_DELIVERY, "delivery", "dispatch",
               f"Order #{order_id} out for delivery with #{rider}.",
               {"delivery_id": rider})
+        eta_mins = int(_rules(None)["watchdog"]["delivery_max_minutes"])
+        _tell_customer(conn, order_id,
+                       _messages.status_out_for_delivery(f"~{eta_mins} min"))
         conn.commit()
         return OUT_FOR_DELIVERY
     finally:
@@ -549,6 +568,7 @@ def mark_delivered(order_id: int, payment_mode: str, db_path=None) -> str:
         _move(conn, order_id, DELIVERED, "delivery", "delivered",
               f"Order #{order_id} delivered, paid by {payment_mode}.",
               {"payment_mode": payment_mode})
+        _tell_customer(conn, order_id, _messages.status_delivered(payment_mode))
         if payment_mode == "credit":
             conn.execute(
                 "UPDATE customers SET outstanding = outstanding + ? WHERE id = ?",
@@ -575,6 +595,7 @@ def report_delivery_problem(order_id: int, note: str,
         _notify(conn, "owner", None, order_id,
                 f"Delivery problem on order #{order_id}: {note}",
                 action_required=True)
+        _tell_customer(conn, order_id, _messages.delivery_problem())
         conn.commit()
         return READY_FOR_DELIVERY
     finally:

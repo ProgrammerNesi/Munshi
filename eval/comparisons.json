@@ -1,0 +1,14 @@
+[
+  {
+    "stt_backend": "mlx_whisper",
+    "llm_model": "gemma4:e4b",
+    "agent": "on",
+    "n_orders": 6,
+    "pct_full": 66.7,
+    "line_acc": 75.0,
+    "qty_acc": 75.0,
+    "avg_sec": 16.2,
+    "safety_net": 2,
+    "ts": "2026-10-04T23:28:03"
+  }
+]

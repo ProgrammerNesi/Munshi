@@ -1,0 +1,14 @@
+[
+  {"file": "order1.wav", "customer_id": 1,
+   "lines": [{"item_id": 1, "qty": 2}, {"item_id": 2, "qty": 5}]},
+  {"file": "order2.wav", "customer_id": 3,
+   "lines": [{"item_id": 12, "qty": 5}]},
+  {"file": "order3.wav", "customer_id": 3,
+   "lines": [{"item_id": 22, "qty": 0.5}]},
+  {"file": "order4.wav", "customer_id": 2,
+   "lines": [{"item_id": 3, "qty": 10}, {"item_id": 5, "qty": 2}]},
+  {"file": "order5.wav", "customer_id": 1,
+   "lines": [{"item_id": 1, "qty": 100}]},
+  {"file": "order6.wav", "customer_id": 5,
+   "lines": [{"item_id": 29, "qty": 4}]}
+]
