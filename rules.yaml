@@ -1,0 +1,40 @@
+# Munshi rulebook — the ONLY place money/approval/stock policy lives.
+# Plain English: the shop owner edits numbers here, never code.
+# The LLM may NOT decide these; deterministic Python in app/rules.py reads this file.
+
+credit:
+  # If (customer outstanding + this order total) would cross the customer's
+  # credit_limit, the order waits for the owner instead of auto-confirming.
+  require_owner_approval_above_outstanding_plus_order: true
+
+order:
+  # Routine orders at or below this rupee total auto-confirm (if no other gate fires).
+  auto_confirm_max_amount: 15000
+  # A line bigger than this multiple of the customer's usual basket qty for
+  # that item counts as "unusual" — ask the customer to confirm (possible typo/fat finger).
+  unusual_qty_multiplier: 3
+
+customers:
+  # First-time buyers always wait for owner approval, whatever the amount.
+  new_customer_requires_approval: true
+
+stock:
+  # false = if any line asks for more than is on the shelf, reject the whole
+  # order and tell the customer (no silent short-packing, no partials).
+  # true  = offer the customer a partial fulfilment instead (asks customer).
+  allow_partial_when_short: false
+
+packing:
+  # How far packed counts may stray from ordered counts (same unit) before the
+  # order locks for owner review. 0 = any difference locks dispatch.
+  mismatch_tolerance: 0
+
+delivery:
+  # Flat delivery fee, waived when the order subtotal reaches free_above.
+  fee: 40
+  free_above: 2000
+
+watchdog:
+  # Background nudges (a later phase): flag packing/delivery running past these.
+  packing_max_minutes: 20
+  delivery_max_minutes: 60
