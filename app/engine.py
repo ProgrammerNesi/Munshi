@@ -25,6 +25,7 @@ from pathlib import Path
 
 from app import messages as _messages
 from app import clock
+from app import tracking
 from app.db import get_conn
 from app.rules import (
     ASK_CUSTOMER,
@@ -399,9 +400,54 @@ def assign_staff(order_id: int, db_path=None) -> int:
               {"packer_id": packer_id})
         _notify(conn, "packer", packer_id, order_id,
                 f"Pack order #{order_id}.", action_required=True)
-        _tell_customer(conn, order_id, _messages.status_packing_started())
+        _tell_customer(
+            conn, order_id,
+            _messages.status_packing_started(tracking.link(
+                _get_order(conn, order_id)["track_token"])))
         conn.commit()
         return packer_id
+    finally:
+        conn.close()
+
+
+def reassign_packer(order_id: int, db_path=None) -> int:
+    """Move a PACKING order to the least-busy different packer."""
+    conn = get_conn(db_path)
+    try:
+        order = _get_order(conn, order_id)
+        if order["status"] != PACKING:
+            raise InvalidTransition(
+                f"Only a PACKING order can be reassigned; #{order_id} is "
+                f"{order['status']}."
+            )
+        escalated = conn.execute(
+            "SELECT 1 FROM attention_items WHERE order_id = ?"
+            " AND status = 'open' AND level >= 2 LIMIT 1",
+            (order_id,),
+        ).fetchone()
+        if not escalated:
+            raise EngineError("There is no open L2 delay to reassign.")
+        rows = conn.execute(
+            "SELECT s.id, s.name, COUNT(o.id) AS n FROM staff s"
+            " LEFT JOIN orders o ON o.packer_id = s.id AND o.status = ?"
+            " WHERE s.role = 'packer' AND (? IS NULL OR s.id != ?)"
+            " GROUP BY s.id ORDER BY n, s.id",
+            (PACKING, order["packer_id"], order["packer_id"]),
+        ).fetchall()
+        if not rows:
+            raise EngineError("No other packer is available to reassign.")
+        packer = rows[0]
+        conn.execute(
+            "UPDATE orders SET packer_id = ?, updated_at = ? WHERE id = ?",
+            (packer["id"], _now(), order_id),
+        )
+        _log(conn, order_id, "owner", "reassign",
+             f"Owner reassigned the packing task to {packer['name']}.",
+             {"from": order["packer_id"], "to": packer["id"], "seconds": 0.0})
+        _notify(conn, "packer", packer["id"], order_id,
+                f"Pack order #{order_id}.", action_required=True)
+        conn.commit()
+        return int(packer["id"])
     finally:
         conn.close()
 
@@ -543,7 +589,9 @@ def start_delivery(order_id: int, delivery_id: int | None = None, db_path=None) 
               {"delivery_id": rider})
         eta_mins = int(_rules(None)["watchdog"]["delivery_max_minutes"])
         _tell_customer(conn, order_id,
-                       _messages.status_out_for_delivery(f"~{eta_mins} min"))
+                       _messages.status_out_for_delivery(
+                           f"~{eta_mins} min",
+                           tracking.link(order["track_token"])))
         conn.commit()
         return OUT_FOR_DELIVERY
     finally:
@@ -568,7 +616,10 @@ def mark_delivered(order_id: int, payment_mode: str, db_path=None) -> str:
         _move(conn, order_id, DELIVERED, "delivery", "delivered",
               f"Order #{order_id} delivered, paid by {payment_mode}.",
               {"payment_mode": payment_mode})
-        _tell_customer(conn, order_id, _messages.status_delivered(payment_mode))
+        _tell_customer(
+            conn, order_id,
+            _messages.status_delivered(
+                payment_mode, tracking.link(order["track_token"])))
         if payment_mode == "credit":
             conn.execute(
                 "UPDATE customers SET outstanding = outstanding + ? WHERE id = ?",
@@ -595,7 +646,10 @@ def report_delivery_problem(order_id: int, note: str,
         _notify(conn, "owner", None, order_id,
                 f"Delivery problem on order #{order_id}: {note}",
                 action_required=True)
-        _tell_customer(conn, order_id, _messages.delivery_problem())
+        order = _get_order(conn, order_id)
+        _tell_customer(conn, order_id,
+                       _messages.delivery_problem(
+                           tracking.link(order["track_token"])))
         conn.commit()
         return READY_FOR_DELIVERY
     finally:

@@ -65,3 +65,76 @@ tr.low { background: #ffebee; }
 .caption { color: #555; font-size: 14px; }
 .muted { color: #777; font-size: 13px; }
 pre.bill { background: #fff; padding: 10px; border-radius: 10px; white-space: pre-wrap; }
+
+/* Owner dashboard: emphasize decisions, active work and verifiable activity. */
+:root { color-scheme: light; }
+body { color: #1c2b27; background: #f3f6f4; }
+header { padding: 16px clamp(16px, 4vw, 48px); background: #075e54; }
+.title { font-size: 22px; }
+.briefbtn { background: #fff; color: #075e54; font-weight: 700; }
+.health span { background: rgba(255,255,255,.17); }
+#tabs { padding: 10px clamp(12px, 4vw, 48px); background: #fff;
+  box-shadow: 0 2px 8px rgba(18,48,39,.08); }
+#tabs button { color: #40534c; font-weight: 600; }
+#tabs button.on { color: #075e54; box-shadow: inset 0 -3px #075e54; border-radius: 0; }
+main { width: min(1180px, 100%); margin: 0 auto; padding: 22px clamp(14px, 3vw, 32px) 52px; }
+.owner-welcome { padding: 22px; border-radius: 18px; color: #fff;
+  background: linear-gradient(120deg, #075e54, #138577); }
+.owner-welcome h2 { margin: 4px 0; font-size: clamp(22px, 4vw, 32px); }
+.owner-welcome p { margin: 6px 0 0; color: #e3f4ef; }
+.eyebrow { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .11em; }
+.overview-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin: 14px 0 26px; }
+.metric { display: flex; flex-direction: column; gap: 5px; background: #fff;
+  border: 1px solid #e2eae6; border-radius: 15px; padding: 15px; }
+.metric span { color: #53645d; font-size: 13px; font-weight: 650; }
+.metric strong { color: #075e54; font-size: 28px; line-height: 1.1; }
+.metric small { color: #7b8983; font-size: 12px; }
+.orders-overview > h2 { font-size: 20px; margin: 0 0 12px; }
+.group { margin: 0 0 20px; }
+.group h3 { display: flex; align-items: center; justify-content: space-between;
+  color: #31463e; font-size: 15px; margin: 0 0 8px; }
+.group .badge { margin-left: 0; background: #e2eeea; color: #075e54; }
+.order { display: block; width: 100%; border: 1px solid #e5ece8; padding: 14px;
+  text-align: left; box-shadow: 0 2px 8px rgba(18,48,39,.04); }
+.order:hover, .order:focus-visible { border-color: #128273; outline: 2px solid #b6e1d8; }
+.order-main, .order-sub { display: flex; justify-content: space-between; gap: 12px; }
+.order-main strong { color: #075e54; }
+.order-sub { margin-top: 6px; color: #6d7d76; font-size: 12px; }
+.order-action { display: block; text-align: right; color: #087366;
+  font-size: 12px; font-weight: 700; margin-top: 8px; }
+.needs { margin: 12px; border-radius: 16px; background: #fff4e8; color: #402b17;
+  border: 1px solid #efd3ac; }
+.needs h3 { color: #8c4d08; }
+.attention-card { border: 1px solid #eed6b7; }
+.attention-card .reasons { color: #493925; }
+.attention-card .big { font-size: 14px; min-height: 44px; }
+.attention-card .row { align-items: center; }
+.big { text-decoration: none; font-weight: 700; }
+.big.ghost { display: inline-flex; align-items: center; justify-content: center; }
+.detail-heading { display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; margin: 10px 0 18px; }
+.detail-heading h2 { margin: 3px 0; }
+.back-link { padding: 8px 0; border: 0; background: transparent; color: #087366;
+  font: inherit; font-weight: 700; cursor: pointer; }
+.detail-section { margin: 18px 0; padding: 16px; border: 1px solid #e3ebe7;
+  border-radius: 16px; background: #fff; }
+.detail-section h3 { margin: 0 0 10px; }
+.transcript { margin: 0; padding: 12px; border-radius: 10px; background: #f3f6f4; }
+.tl { border-color: #b6d0c7; }
+.tl li { padding: 10px 12px; border: 1px solid #e7eeea; border-left: 3px solid #b6d0c7;
+  border-radius: 8px; background: #fff; line-height: 1.5; }
+.tl .k-agent_tool, .tl .k-agent_proposal { border-left-color: #3482c3; }
+.tl .k-agent_overridden { border-left-color: #e98225; }
+.tl .k-agent_fallback { border-left-color: #d29a13; }
+.log-section .muted { margin-top: -5px; }
+.empty-state { padding: 24px; border-radius: 14px; background: #fff; color: #62736c; }
+@media (max-width: 600px) {
+  .overview-cards { gap: 7px; }
+  .metric { padding: 11px 9px; }
+  .metric span { font-size: 11px; }
+  .metric strong { font-size: 23px; }
+  .metric small { font-size: 10px; }
+  .needs { margin: 10px; }
+  .detail-heading { align-items: flex-start; }
+}

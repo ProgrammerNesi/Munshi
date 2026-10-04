@@ -27,6 +27,38 @@ MATCH_MIN_SCORE = 88  # accept a match only at/above this rapidfuzz score
 MATCH_MARGIN = 8  # winner must beat the runner-up by this much ...
 MAX_CANDIDATES = 3  # ... else the line is "unresolved" with top-3 candidates
 LLM_TRIES = 2  # JSON parse attempts before asking the customer to retype
+NUMBER_WORDS = {
+    "one": 1, "ek": 1, "a": 1, "two": 2, "do": 2, "three": 3, "teen": 3,
+    "four": 4, "char": 4, "chaar": 4, "five": 5, "paanch": 5,
+    "six": 6, "chhe": 6, "seven": 7, "saat": 7, "eight": 8, "aath": 8,
+    "nine": 9, "nau": 9, "ten": 10, "das": 10, "half": 0.5,
+    "aadha": 0.5, "dedh": 1.5, "dhai": 2.5,
+}
+UNIT_ALIASES = {
+    "kg": "kg", "kgs": "kg", "kilo": "kg", "kilos": "kg",
+    "kilogram": "kg", "kilograms": "kg",
+    "g": "g", "gram": "g", "grams": "g",
+    "litre": "litre", "litres": "litre", "liter": "litre",
+    "liters": "litre", "ltr": "litre",
+    "pack": "pack", "packs": "pack", "packet": "pack", "packets": "pack",
+    "pkt": "pack", "box": "box", "boxes": "box",
+    "piece": "piece", "pieces": "piece", "pc": "piece",
+    "dozen": "dozen", "bori": "bori", "katta": "bori",
+}
+_NUMBER_PATTERN = "|".join(
+    re.escape(word) for word in sorted(NUMBER_WORDS, key=len, reverse=True))
+_QUANTITY_RE = re.compile(
+    rf"(?<!\w)(\d+(?:\.\d+)?|{_NUMBER_PATTERN})"
+    rf"(?:\s+(kg|kgs|kilo|kilos|kilograms?|g|grams?|litres?|liters?|ltr|"
+    rf"packs?|packets?|pkt|boxes?|box|pieces?|pc|dozen|bori|katta))?"
+    rf"(?!\w)",
+    re.IGNORECASE,
+)
+_FILLER_WORDS = {
+    "please", "send", "bhej", "bhejo", "bhejna", "dena", "dijiye",
+    "deliver", "delivery", "order", "chahiye", "de", "do", "ji", "bhaiya",
+    "bhai", "mere", "pass", "kar", "dijiye", "wala", "wali", "wale",
+}
 
 # Line statuses.
 OK = "ok"
@@ -216,12 +248,90 @@ def _llm_lines(prompt: str) -> ExtractPayload | None:
     return None
 
 
+def _parse_quantity(clause: str) -> tuple[float | None, str]:
+    """Read an explicit quantity and unit from one conjunction-separated item."""
+    for match in _QUANTITY_RE.finditer(clause):
+        suffix = clause[match.end():].lstrip().lower()
+        if suffix.startswith(("wala", "wali", "wale")):
+            continue
+        raw_qty = match.group(1).lower()
+        qty = float(raw_qty) if raw_qty[0].isdigit() else NUMBER_WORDS[raw_qty]
+        unit = UNIT_ALIASES.get((match.group(2) or "").lower(), "unknown")
+        return qty, unit
+    return None, "unknown"
+
+
+def _guess_unknown_item(clause: str) -> str:
+    """Remove quantities and common order words, leaving the spoken item name."""
+    words = []
+    for word in normalise(_QUANTITY_RE.sub(" ", clause)).split():
+        if word not in _FILLER_WORDS and not word.isdigit():
+            words.append(word)
+    return " ".join(words)
+
+
+def _simple_text_order(transcript: str, catalog: list[dict],
+                       usual_names: list[str] | None) -> DraftOrder:
+    """Conservative no-model parser for clear typed lines and mock demos."""
+    clauses = re.split(r"\s*(?:,|;|&|\band\b|\baur\b)\s*",
+                       transcript, flags=re.IGNORECASE)
+    lines = []
+    for clause in clauses:
+        clause = clause.strip()
+        if not clause:
+            continue
+        qty, unit = _parse_quantity(clause)
+        normalized = normalise(clause)
+        hits: dict[int, tuple[dict, str]] = {}
+        for entry in catalog:
+            for alias in [entry["name"], *entry["aliases"]]:
+                name = normalise(alias)
+                if name and name in normalized:
+                    previous = hits.get(entry["item_id"])
+                    if previous is None or len(name) > len(previous[1]):
+                        hits[entry["item_id"]] = (entry, name)
+
+        if len(hits) == 1:
+            entry = next(iter(hits.values()))[0]
+            lines.append(DraftLine(
+                raw=clause, item_id=entry["item_id"], item_name=entry["name"],
+                qty=qty, unit=unit, score=100.0,
+                status=QTY_MISSING if qty is None else OK,
+            ))
+            continue
+
+        guess = _guess_unknown_item(clause)
+        if hits:
+            guess = max((name for _entry, name in hits.values()), key=len)
+        if not guess:
+            continue
+        item_id, name, score, resolved, candidates = match_item(
+            guess, catalog, usual_names)
+        entry = next((e for e in catalog if e["item_id"] == item_id), None)
+        lines.append(DraftLine(
+            raw=clause, item_id=item_id if resolved else None,
+            item_name=entry["name"] if entry else name, qty=qty,
+            unit=unit, score=score,
+            status=(QTY_MISSING if resolved and qty is None else
+                    OK if resolved else UNRESOLVED),
+            candidates=candidates,
+        ))
+
+    return DraftOrder(
+        lines=lines, notes="", transcript=transcript,
+        needs_retype=not lines,
+    )
+
+
 def extract_order(transcript: str, usual_names: list[str] | None = None,
                   catalog: list[dict] | None = None, db_path=None) -> DraftOrder:
     """Transcript -> DraftOrder. Never raises for model-side trouble."""
     catalog = catalog if catalog is not None else load_catalog(db_path)
     payload = _llm_lines(_build_prompt(transcript, catalog, usual_names))
-    if payload is None:
+    if payload is None or not payload.lines:
+        fallback = _simple_text_order(transcript, catalog, usual_names)
+        if fallback.lines or payload is None:
+            return fallback
         return DraftOrder(lines=[], notes="", transcript=transcript,
                           needs_retype=True)
     lines = []

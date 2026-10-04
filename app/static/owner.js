@@ -51,28 +51,71 @@
       : "<button class='big' data-do='partial' data-id='" + o.id + "'>Accept partial</button>" +
         "<button class='big warn' data-do='recount' data-id='" + o.id + "'>Ask recount</button>" +
         "<button class='big danger' data-do='cancel' data-id='" + o.id + "'>Cancel</button>";
-    return "<div class='card'><b>Order #" + o.id + " · " + esc(o.customer) +
+    return "<div class='card attention-card'><b>" + esc(o.customer) +
       " · ₹" + o.total + "</b>" +
+      "<div class='muted'>Order #" + o.id + " · " + esc(statusLabel(o.status)) +
+      "</div>" +
       "<div class='reasons'>" + o.reasons.map(esc).join("<br>") + "</div>" +
       (o.agent_note ? "<div class='agent-note'>Agent: " + esc(o.agent_note) + "</div>" : "") +
-      "<div class='row'>" + btns + "</div></div>";
+      "<div class='row'><button class='big ghost' data-open='" + o.id +
+      "'>Review order log</button>" + btns + "</div></div>";
+  }
+
+  function statusLabel(status) {
+    return ({
+      AWAITING_APPROVAL: "Awaiting your approval",
+      PACK_MISMATCH: "Packing needs review",
+      READY_FOR_DELIVERY: "Ready for delivery",
+      OUT_FOR_DELIVERY: "Out for delivery",
+      CLARIFYING: "Waiting for customer reply",
+      PACKING: "Being packed",
+      CONFIRMED: "Confirmed",
+      DELIVERED: "Delivered",
+      CANCELLED: "Cancelled",
+      REJECTED: "Not accepted",
+      NEW: "New order"
+    })[status] || status.replace(/_/g, " ");
   }
 
   /* -- board + detail -- */
   function board(data) {
     needs(data.needs_you);
-    var html = "";
-    Object.keys(data.groups).sort().forEach(function (st) {
-      html += "<div class='group'><h3>" + esc(st) +
+    var summary = data.summary || {};
+    var html = "<section class='owner-welcome'><div><p class='eyebrow'>SHOP OVERVIEW</p>" +
+      "<h2>Your orders, one clear view</h2><p>Only live shop activity is shown here. " +
+      "Open an order to review Munshi's work and the event log.</p></div></section>" +
+      "<section class='overview-cards'>" +
+      metric("Active orders", summary.active || 0, "Being handled now") +
+      metric("Needs your decision", summary.needs_you || 0, "Approval or packing issue") +
+      metric("Delivered", summary.delivered || 0, "Completed shop orders") +
+      "</section><section class='orders-overview'><h2>Orders by status</h2>";
+    var statuses = Object.keys(data.groups).sort(function (a, b) {
+      var priority = ["AWAITING_APPROVAL", "PACK_MISMATCH", "CLARIFYING",
+        "NEW", "CONFIRMED", "PACKING", "READY_FOR_DELIVERY",
+        "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REJECTED"];
+      return priority.indexOf(a) - priority.indexOf(b);
+    });
+    statuses.forEach(function (st) {
+      html += "<div class='group'><h3>" + esc(statusLabel(st)) +
         "<span class='badge b-" + st + "'>" + data.groups[st].length + "</span></h3>";
       html += data.groups[st].map(function (o) {
-        return "<div class='order' data-open='" + o.id + "'><b>#" + o.id + "</b> " +
-          esc(o.customer) + " · ₹" + o.total +
-          "<div class='status'>" + esc(o.updated_at.slice(0, 16).replace("T", " ")) + "</div></div>";
+        return "<button class='order' data-open='" + o.id + "'>" +
+          "<span class='order-main'><b>" + esc(o.customer) + "</b>" +
+          "<strong>₹" + o.total + "</strong></span>" +
+          "<span class='order-sub'><span>Order #" + o.id + "</span>" +
+          "<span>" + esc(o.updated_at.slice(0, 16).replace("T", " ")) +
+          "</span></span><span class='order-action'>View order log →</span></button>";
       }).join("") + "</div>";
     });
-    document.getElementById("tab-board").innerHTML = html || "No orders yet.";
+    html += statuses.length
+      ? "</section>"
+      : "<div class='empty-state'>No shop orders yet. New customer orders will appear here.</div></section>";
+    document.getElementById("tab-board").innerHTML = html;
     if (openDetail) detail(openDetail, true);
+  }
+  function metric(title, value, hint) {
+    return "<article class='metric'><span>" + esc(title) + "</span>" +
+      "<strong>" + value + "</strong><small>" + esc(hint) + "</small></article>";
   }
   function detail(id, silent) {
     openDetail = id;
@@ -88,13 +131,25 @@
           "</td><td>₹" + l.unit_price + "</td><td>" + l.packed_qty + "</td></tr>";
       }).join("");
       document.getElementById("tab-detail").innerHTML =
-        "<h3>Order #" + o.id + " · " + esc(o.customer) + "</h3>" +
-        "<p><i>" + esc(o.transcript || "(no transcript)") + "</i></p>" +
+        "<button class='back-link' data-back-board>← Back to orders</button>" +
+        "<section class='detail-heading'><div><p class='eyebrow'>ORDER #" + o.id +
+        "</p><h2>" + esc(o.customer) + "</h2></div><span class='badge b-" +
+        esc(o.status) + "'>" + esc(statusLabel(o.status)) + "</span></section>" +
+        "<div class='row'><a class='big ghost' href='" + esc(o.tracking_url) +
+        "' target='_blank' rel='noopener noreferrer'>Open customer view</a>" +
+        (o.needs_reassign ? "<button class='big warn' data-reassign='" + o.id +
+          "'>Reassign</button>" : "") + "</div>" +
+        "<section class='detail-section'><h3>Customer message</h3><p class='transcript'>" +
+        esc(o.transcript || "(No message recorded)") + "</p></section>" +
+        "<section class='detail-section'><h3>Items and packing</h3>" +
         "<table class='sheet'><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Packed</th></tr>" +
-        lines + "</table>" +
+        lines + "</table></section>" +
         (o.bill ? "<pre class='bill'>Total ₹" + o.bill.total + " (delivery ₹" +
           o.bill.delivery_fee + ") · " + esc(o.bill.eta_text) + "</pre>" : "") +
-        "<h4>Reasoning</h4><ul class='tl'>" + tl + "</ul>";
+        "<section class='detail-section log-section'><h3>Order activity log</h3>" +
+        "<p class='muted'>Every step is recorded. Agent suggestions are separate from " +
+        "the deterministic rulebook decision.</p><ul class='tl'>" + tl +
+        "</ul></section>";
       show("detail");
       if (!silent) document.getElementById("tab-detail").scrollIntoView();
     });
@@ -152,11 +207,24 @@
     if (t) show(t.dataset.tab);
   };
   document.body.onclick = function (e) {
+    if (e.target.closest("[data-back-board]")) {
+      openDetail = null;
+      show("board");
+      return;
+    }
     var open = e.target.closest("[data-open]");
     if (open) { detail(open.dataset.open); return; }
     var done = e.target.closest("[data-done]");
     if (done) {
       post("/api/owner/notifications/" + done.dataset.done + "/done").then(poll);
+      return;
+    }
+    var reassign = e.target.closest("[data-reassign]");
+    if (reassign) {
+      var orderId = reassign.dataset.reassign;
+      post("/api/owner/order/" + orderId + "/reassign")
+        .then(function () { detail(orderId, true); poll(); })
+        .catch(function (err) { alert("Failed: " + err.message); });
       return;
     }
     var btn = e.target.closest("[data-do]");

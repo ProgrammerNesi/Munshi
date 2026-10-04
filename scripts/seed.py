@@ -54,7 +54,12 @@ def parse_basket(raw: str) -> list[dict]:
     return basket
 
 
-def seed(db_path: str | Path | None = None) -> dict[str, int]:
+def seed(
+    db_path: str | Path | None = None,
+    *,
+    single_shop: bool = False,
+) -> dict[str, int]:
+    """Seed demo data; optionally limit the demo database to Ramesh Kirana."""
     init_db(db_path)
     conn = get_conn(db_path)
     try:
@@ -79,6 +84,8 @@ def seed(db_path: str | Path | None = None) -> dict[str, int]:
         item_id_of = {r["name"]: int(r["id"]) for r in items}
 
         customers = _read_csv(DATA / "customers.csv")
+        if single_shop:
+            customers = [row for row in customers if int(row["id"]) == 1]
         for r in customers:
             basket = parse_basket(r.get("usual_basket", ""))
             conn.execute(
@@ -176,8 +183,13 @@ def seed(db_path: str | Path | None = None) -> dict[str, int]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Seed Munshi demo DB.")
     ap.add_argument("--db", default=None, help="sqlite path (default data/munshi.db)")
+    ap.add_argument(
+        "--single-shop",
+        action="store_true",
+        help="seed only Ramesh Kirana for a focused single-shop demo",
+    )
     args = ap.parse_args()
-    counts = seed(args.db)
+    counts = seed(args.db, single_shop=args.single_shop)
     for t, n in counts.items():
         print(f"  {t}: {n}")
 

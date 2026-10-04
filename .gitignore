@@ -8,4 +8,10 @@ __pycache__/
 .DS_Store
 
 # Generated at runtime (rebuild with: python scripts/seed.py)
-data/munshi.db
+data/*.db
+data/*.db-*
+/data/uploads/
+
+# Local recordings and evaluation fixtures (may contain user-provided audio).
+/audio/
+/eval/audio/

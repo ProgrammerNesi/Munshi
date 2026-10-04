@@ -21,7 +21,7 @@
   function linesHtml(o) {
     if (ROLE === "packer") {
       return o.lines.map(function (l) {
-        return "<tr><td>" + esc(l.name) + "<br><span class='muted'>manga: " +
+        return "<tr><td>" + esc(l.name) + "<br><span class='muted'>Requested: " +
           l.qty + " " + esc(l.unit) + "</span></td>" +
           "<td><input type='number' min='0' step='any' data-item='" + l.item_id +
           "' value='" + l.qty + "' aria-label='" + esc(l.name) + " packed'></td></tr>";
@@ -33,19 +33,19 @@
   }
   function render(orders) {
     if (!orders.length) {
-      list.innerHTML = "<div class='empty'>Koi kaam nahi — sab clear! 🎉</div>";
+      list.innerHTML = "<div class='empty'>No orders to work on right now.</div>";
       return;
     }
     list.innerHTML = orders.map(function (o) {
       var btns = ROLE === "packer"
-        ? "<button class='big' data-pack='" + o.id + "'>Pack ho gaya ✓</button>"
+        ? "<button class='big' data-pack='" + o.id + "'>Packing complete ✓</button>"
         : (o.status === "READY_FOR_DELIVERY"
-          ? "<button class='big' data-start='" + o.id + "'>Nikal gaya 🛵</button>"
+          ? "<button class='big' data-start='" + o.id + "'>Start delivery 🛵</button>"
           : "<div class='seg' data-pay='" + o.id + "'>" +
             "<button data-mode='cash'>Cash</button>" +
             "<button data-mode='upi'>UPI</button>" +
-            "<button data-mode='credit'>Udhar</button></div>" +
-            "<button class='big warn' data-problem='" + o.id + "'>Dikkat hai</button>");
+            "<button data-mode='credit'>Shop credit</button></div>" +
+            "<button class='big warn' data-problem='" + o.id + "'>Report a delivery issue</button>");
       return "<div class='task' data-order='" + o.id + "'><h3>#" + o.id + " · " +
         esc(o.customer) + " · " + esc(o.area || "") + " · ₹" + o.total + "</h3>" +
         "<table>" + linesHtml(o) + "</table><div class='row'>" + btns + "</div></div>";
@@ -82,7 +82,7 @@
            { payment_mode: b.dataset.mode }).then(poll)
         .catch(function (err) { alert(err.message); });
     } else if ((b = q("[data-problem]"))) {
-      var note = prompt("Kya dikkat hai? (dukaan band / galat pata / …)") || "";
+      var note = prompt("What went wrong? (For example: shop closed or wrong address)") || "";
       if (!note.trim()) return;
       post("/api/tasks/delivery/" + b.dataset.problem + "/problem", { note: note })
         .then(poll).catch(function (err) { alert(err.message); });

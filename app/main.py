@@ -14,7 +14,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -23,6 +23,7 @@ from app import clock
 from app import engine
 from app import owner as owner_mod
 from app import pipeline
+from app import tracking
 from app import warmup
 from app.ai import briefing as briefing_mod
 from app.db import get_conn
@@ -72,10 +73,14 @@ async def post_message(customer_id: int, text: str = Form(None),
         _customer_or_404(conn, customer_id)
         audio_path = None
         if audio is not None:
-            safe = Path(audio.filename or "note.webm").name
-            dest = UPLOADS / f"{int(time.time())}_{safe}"
-            dest.write_bytes(await audio.read())
-            audio_path = str(dest)
+            content = await audio.read()
+            if content:
+                safe = Path(audio.filename or "note.webm").name
+                dest = UPLOADS / f"{int(time.time())}_{safe}"
+                dest.write_bytes(content)
+                audio_path = str(dest)
+            elif not (text or "").strip():
+                raise HTTPException(400, "The audio recording is empty.")
         cur = conn.execute(
             "INSERT INTO messages (customer_id, order_id, direction, text,"
             " audio_path, ts) VALUES (?,?, 'in', ?, ?, ?)",
@@ -103,8 +108,11 @@ def get_state(customer_id: int | None = None):
     try:
         _customer_or_404(conn, customer_id)
         msgs = [dict(r) for r in conn.execute(
-            "SELECT id, direction, text, ts FROM messages"
-            " WHERE customer_id = ? ORDER BY id", (customer_id,))]
+            "SELECT m.id, m.order_id, m.direction, m.text, m.ts"
+            " FROM messages m LEFT JOIN orders o ON o.id = m.order_id"
+            " WHERE m.customer_id = ?"
+            " AND COALESCE(o.transcript, '') NOT LIKE '[DEMO HISTORY]%'"
+            " ORDER BY m.id", (customer_id,))]
         orders = []
         for o in conn.execute(
                 "SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC",
@@ -119,7 +127,8 @@ def get_state(customer_id: int | None = None):
                 bill = None
             orders.append({"id": o["id"], "status": o["status"],
                            "total": o["total"], "updated_at": o["updated_at"],
-                           "lines": lines, "bill": bill})
+                           "lines": lines, "bill": bill,
+                           "tracking_url": tracking.link(o["track_token"])})
         notif = conn.execute(
             "SELECT COUNT(*) AS n FROM notifications n JOIN orders o"
             " ON o.id = n.order_id WHERE o.customer_id = ? AND n.done = 0",
@@ -208,6 +217,16 @@ def owner_order(order_id: int):
         return owner_mod.order_detail(order_id)
     except KeyError as e:
         raise HTTPException(404, str(e))
+
+
+@app.post("/api/owner/order/{order_id}/reassign")
+def owner_reassign(order_id: int):
+    """Owner moves a packing order to another packer."""
+    try:
+        packer_id = engine.reassign_packer(order_id)
+    except engine.EngineError as e:
+        raise HTTPException(409, str(e))
+    return {"status": engine.PACKING, "packer_id": packer_id}
 
 
 @app.post("/api/owner/order/{order_id}/approve")
@@ -461,33 +480,20 @@ def supervisor_tick():
 
 @app.get("/t/{token}", response_class=HTMLResponse)
 def track_order(token: str, request: Request):
-    """Unguessable tracking link: status + ETA + items only. No ids, no
-    phones, no other customers, no balances."""
-    conn = get_conn()
-    try:
-        order = conn.execute(
-            "SELECT status, eta_at FROM orders WHERE track_token = ?",
-            (token,)).fetchone()
-        if order is None:
-            raise HTTPException(404, "Link invalid hai. Dukaandaar se poochhiye.")
-        items = [{"name": r["name"], "qty": r["qty"], "unit": r["unit"]}
-                 for r in conn.execute(
-                     "SELECT i.name, ol.qty, i.unit FROM order_lines ol"
-                     " JOIN items i ON i.id = ol.item_id"
-                     " WHERE ol.order_id = (SELECT id FROM orders"
-                     " WHERE track_token = ?) ORDER BY ol.id", (token,))]
-        labels = {"PACKING": "Pack ho raha hai",
-                  "READY_FOR_DELIVERY": "Nikalne ke liye taiyaar hai",
-                  "OUT_FOR_DELIVERY": "Raste me hai — jaldi pahunch jayega",
-                  "DELIVERED": "Pahunch gaya. Dhanyavaad!",
-                  "PACK_MISMATCH": "Packing check ho rahi hai, thoda intezaar",
-                  "NEW": "Order mil gaya hai", "CLARIFYING": "Ek sawal hai",
-                  "AWAITING_APPROVAL": "Approval ka intezaar hai",
-                  "CANCELLED": "Order cancel ho gaya", "REJECTED": "Order nahi ho paya"}
-        return templates.TemplateResponse(request, "track.html", {
-            "status": labels.get(order["status"], order["status"]),
-            "eta_at": (order["eta_at"] or "")[:16].replace("T", " "),
-            "items": items,
-        })
-    finally:
-        conn.close()
+    """Render the noindex customer view, including a friendly unknown-link page."""
+    payload = tracking.track_json(token)
+    response = templates.TemplateResponse(request, "track.html", {
+        "payload": payload,
+        "unknown": payload is None,
+    }, status_code=404 if payload is None else 200)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/track/{token}")
+def track_order_json(token: str):
+    """Minimal public status payload for the customer's polling view."""
+    payload = tracking.track_json(token)
+    if payload is None:
+        raise HTTPException(404, "Tracking link not found.")
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})

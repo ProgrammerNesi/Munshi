@@ -145,4 +145,4 @@ def test_pipeline_crash_still_replies(monkeypatch, tmp_path):
             "SELECT COUNT(*) FROM events WHERE kind = 'error'").fetchone()[0]
     finally:
         conn.close()
-    assert err == 1 and any("Samajh nahi aaya" in r[0] for r in out)
+    assert err == 1 and any("couldn't read" in r[0].lower() for r in out)

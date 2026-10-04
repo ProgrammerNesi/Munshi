@@ -75,6 +75,34 @@ def test_board_groups_and_needs_you(client):
     assert board["groups"]["AWAITING_APPROVAL"][0]["customer"] == "Patel Traders"
 
 
+def test_owner_board_hides_seeded_history_but_keeps_shop_orders(client):
+    client, db = client
+    real_order = _mismatch(db)
+    board = client.get("/api/owner/board").json()
+    visible = [
+        order
+        for orders in board["groups"].values()
+        for order in orders
+    ]
+    assert visible
+    assert all("[DEMO HISTORY]" not in order["customer"] for order in visible)
+    assert any(order["id"] == real_order for order in visible)
+    assert board["summary"]["orders"] == 1
+    assert board["summary"]["active"] == 1
+    assert board["summary"]["needs_you"] == 1
+
+
+def test_staff_task_pages_use_english_labels(client):
+    client, _db = client
+    packer = client.get("/packer")
+    delivery = client.get("/delivery")
+    assert packer.status_code == delivery.status_code == 200
+    assert "Packing orders" in packer.text
+    assert "Can't connect to the shop" in packer.text
+    assert "Delivery orders" in delivery.text
+    assert "Can't connect to the shop" in delivery.text
+
+
 def _new_customer_hold(db):
     """Small order from the new customer: held for approval, sips no stock."""
     llm.set_mock_json({"lines": [

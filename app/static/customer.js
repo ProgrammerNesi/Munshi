@@ -3,9 +3,7 @@
   "use strict";
   var CID = document.body.dataset.customerId;
   var chat = document.getElementById("chat");
-  var ordersBox = document.getElementById("orders");
-  var activity = document.getElementById("activity");
-  var activityLabel = document.getElementById("activity-label");
+  var typing = document.getElementById("typing");
   var busy = document.getElementById("busy");
   var toast = document.getElementById("toast");
   var textBox = document.getElementById("text");
@@ -20,7 +18,24 @@
   }
 
   function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function renderMessage(m) {
+    var text = String(m.text || "");
+    var match = text.match(/https?:\/\/[^\s]+\/t\/[A-Za-z0-9_-]+/);
+    var body = match ? text.replace(match[0], "").trim() : text;
+    var stamp = new Date(m.ts);
+    var time = isNaN(stamp.getTime()) ? "" :
+      stamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return '<div class="msg ' + m.direction + '"><div class="message-text">' +
+      esc(body) + '</div>' +
+      (match ? '<a class="track-button" href="' + esc(match[0]) +
+        '" target="_blank" rel="noopener noreferrer">Open order tracking</a>' : "") +
+      '<div class="message-meta">' + esc(time) +
+      (m.direction === "out" ? ' <span class="checks" aria-label="sent">✓✓</span>' : "") +
+      "</div></div>";
   }
 
   function render(state) {
@@ -28,33 +43,15 @@
     if (key === lastRendered) return;
     lastRendered = key;
 
-    chat.innerHTML = state.messages.map(function (m) {
-      return '<div class="msg ' + m.direction + '">' + esc(m.text) + "</div>";
-    }).join("");
+    var newestOrderId = state.orders.length ? state.orders[0].id : null;
+    var visibleMessages = state.messages.filter(function (message) {
+      var isBill = /^(your order summary:|aapka bill ready hai:)/i.test(message.text);
+      return !isBill || message.order_id === newestOrderId;
+    });
+    chat.innerHTML = visibleMessages.map(renderMessage).join("");
     chat.scrollTop = chat.scrollHeight;
 
-    ordersBox.innerHTML = state.orders.map(function (o) {
-      var bill = "";
-      if (o.bill) {
-        var rows = o.bill.lines.map(function (l) {
-          return "<tr><td>" + esc(l.name) + " " + l.qty + " " + esc(l.unit) +
-            "</td><td>₹" + l.line_total + "</td></tr>";
-        }).join("");
-        bill = '<div class="bill"><h4>Bill #' + o.id + "</h4><table>" + rows +
-          '<tr><td>Delivery</td><td>₹' + o.bill.delivery_fee + "</td></tr>" +
-          '<tr class="total"><td>Total</td><td>₹' + o.bill.total + "</td></tr>" +
-          "</table><div class='status'>" + esc(o.bill.eta_text) + "</div></div>";
-      }
-      return bill + '<div class="status">Order #' + o.id + ": " + esc(o.status) +
-        (state.notifications ? " · 🔔" + state.notifications : "") + "</div>";
-    }).join("");
-
-    if (state.activity) {
-      activityLabel.textContent = state.activity;
-      activity.classList.remove("hidden");
-    } else {
-      activity.classList.add("hidden");
-    }
+    typing.classList.toggle("hidden", !state.activity);
     busy.classList.toggle("hidden", !(state.queue_depth > 3));
   }
 
@@ -85,9 +82,9 @@
     var form = new FormData();
     form.append("text", v);
     postForm(form).then(function (r) {
-      if (!r.ok) showToast("Bhejne me dikkat aayi, dobara try kijiye.");
+      if (!r.ok) showToast("Message not sent. Please try again.");
       poll();
-    }).catch(function () { showToast("Upload failed — net ya server dekhiye."); });
+    }).catch(function () { showToast("Message not sent. Check the local server."); });
   }
 
   document.getElementById("send").onclick = sendText;
@@ -101,46 +98,68 @@
     form.append("audio", e.target.files[0]);
     if (textBox.value.trim()) form.append("text", textBox.value.trim());
     postForm(form).then(poll).catch(function () {
-      showToast("Upload failed — file badi ya net slow ho sakta hai.");
+      showToast("Upload failed. Check the file and local server.");
     });
     e.target.value = "";
   };
 
   /* Hold-to-record mic: press and hold, release to send. */
   var micBtn = document.getElementById("mic");
-  var recorder = null, chunks = [];
+  var recorder = null, chunks = [], micPressed = false, micRequest = 0;
   function micStart(e) {
     e.preventDefault();
+    if (micPressed) return;
+    micPressed = true;
+    var request = ++micRequest;
+    if (micBtn.setPointerCapture && e.pointerId !== undefined) {
+      micBtn.setPointerCapture(e.pointerId);
+    }
     if (!navigator.mediaDevices || !window.MediaRecorder) {
       micHint.classList.remove("hidden");
       return;
     }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      chunks = [];
-      recorder = new MediaRecorder(stream);
-      recorder.ondataavailable = function (ev) { chunks.push(ev.data); };
-      recorder.onstop = function () {
+      if (!micPressed || request !== micRequest) {
         stream.getTracks().forEach(function (t) { t.stop(); });
-        var blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        return;
+      }
+      chunks = [];
+      var activeRecorder = new MediaRecorder(stream);
+      recorder = activeRecorder;
+      activeRecorder.ondataavailable = function (ev) { chunks.push(ev.data); };
+      activeRecorder.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        var blob = new Blob(chunks, { type: activeRecorder.mimeType || "audio/webm" });
+        recorder = null;
+        micBtn.classList.remove("rec");
+        if (!blob.size) {
+          showToast("No audio captured. Hold the microphone while speaking.");
+          return;
+        }
         var form = new FormData();
         form.append("audio", blob, "mic.webm");
         postForm(form).then(poll).catch(function () {
-          showToast("Upload failed — dobara try kijiye.");
+          showToast("Voice note not sent. Please try again.");
         });
       };
-      recorder.start();
+      activeRecorder.start();
       micBtn.classList.add("rec");
     }).catch(function () {
-      micHint.classList.remove("hidden");  // text input stays usable
+      if (micPressed && request === micRequest) {
+        micHint.classList.remove("hidden");  // text input stays usable
+      }
     });
   }
   function micStop(e) {
     if (e) e.preventDefault();
+    if (!micPressed) return;
+    micPressed = false;
+    micRequest++;
     if (recorder && recorder.state !== "inactive") recorder.stop();
     micBtn.classList.remove("rec");
   }
   micBtn.addEventListener("pointerdown", micStart);
-  ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
+  ["pointerup", "pointercancel"].forEach(function (ev) {
     micBtn.addEventListener(ev, micStop);
   });
 

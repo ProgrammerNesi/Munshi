@@ -42,6 +42,29 @@ def test_seed_masters(tmp_path):
         conn.close()
 
 
+def test_single_shop_seed_has_one_customer_and_only_its_history(tmp_path):
+    db = tmp_path / "single_shop.db"
+    counts = seed(db, single_shop=True)
+    assert counts["customers"] == 1
+    assert counts["orders"] > 0
+
+    conn = get_conn(db)
+    try:
+        customers = conn.execute(
+            "SELECT id, name FROM customers"
+        ).fetchall()
+        order_customer_ids = {
+            row["customer_id"]
+            for row in conn.execute("SELECT DISTINCT customer_id FROM orders")
+        }
+        assert [(row["id"], row["name"]) for row in customers] == [
+            (1, "Ramesh Kirana")
+        ]
+        assert order_customer_ids == {1}
+    finally:
+        conn.close()
+
+
 def test_seed_fake_history(tmp_path):
     db = tmp_path / "seed_hist.db"
     counts = seed(db)

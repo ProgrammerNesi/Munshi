@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from app import clock
 from app import engine
 from app import messages as _messages
+from app import tracking
 from app.db import get_conn
 from app.rules import load_rules, supervision_minutes
 
@@ -142,7 +143,8 @@ def _fire_l2(conn, order: dict, kind: str, late: int, sla: int, gap: int,
                  (eta_at, order["id"]))
     engine._tell_customer(
         conn, order["id"],
-        _messages.delay_customer(f"lagbhag {eta_min} min me", f"/t/{token}"))
+        _messages.delay_customer(f"lagbhag {eta_min} min me",
+                                  tracking.link(token)))
     _log(conn, order["id"], "delay_notice",
          f"L2: customer told, new ETA ~{eta_min} min via /t/<token>.",
          {"kind": kind, "level": 2, "eta_at": eta_at})

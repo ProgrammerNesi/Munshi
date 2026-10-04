@@ -15,6 +15,13 @@ def _fit(text: str) -> str:
     return text if len(text) <= MAX_LEN else text[: MAX_LEN - 1] + "…"
 
 
+def _with_tracking(text: str, tracking_url: str = "") -> str:
+    """Keep the complete tracking URL attached to a short status message."""
+    if not tracking_url:
+        return _fit(text)
+    return f"{_fit(text)} Track: {tracking_url}"
+
+
 def listening() -> str:
     """Acknowledgement while the voice note is being transcribed."""
     return "Sun raha hoon… 1 minute rukiye."
@@ -23,48 +30,51 @@ def listening() -> str:
 def clarify_item(raw: str, candidates: list[str]) -> str:
     """Ambiguous item: offer numbered candidates from the catalog."""
     options = " / ".join(f"{i + 1}) {c}" for i, c in enumerate(candidates[:3]))
-    return _fit(f"'{raw}' samajh nahi aaya. Kaunsi wali: {options}? Number likhiye.")
+    return _fit(f"I couldn't match '{raw}'. Which item did you mean: {options}?")
 
 
 def clarify_unit(item: str) -> str:
     """Unit said does not match the item's selling unit."""
-    return f"{item} kis hisaab se? kg, litre ya packet me likhiye."
+    return f"What unit should I use for {item} (kg, litre, or pack)?"
 
 
 def confirm_unusual_qty(item: str, qty: float, usual: float) -> str:
     """Quantity far above the customer's usual basket: confirm explicitly."""
-    return _fit(f"{qty:g} {item}? Aap usually {usual:g} lete hain."
-                " Confirm hai to HAAN likhiye, warna sahi wazan likhiye.")
+    return _fit(f"Confirm {qty:g} {item}? You usually order {usual:g}."
+                " Reply YES to confirm or send the correct quantity.")
 
 
 def clarify_qty(item: str) -> str:
     """Item known, weight missing: ask for it plainly."""
-    return f"{item} kitna? Wazan likhiye, jaise 2 kilo."
+    return f"How much {item} would you like? For example: 2 kg."
 
 
 def order_cancelled() -> str:
     """Customer called the order off after a clarification question."""
-    return "Theek hai, order cancel kar diya. Kuch aur chahiye to bataiye."
+    return "Okay, the order is cancelled. Message us if you need anything else."
 
 
-def awaiting_owner() -> str:
+def awaiting_owner(tracking_url: str = "") -> str:
     """Order needs the owner's credit approval."""
-    return "Udhaar approval ke liye malik ko bheja hai. Thodi der me batata hoon."
+    return _with_tracking(
+        "This order needs shop approval. We'll update you shortly.",
+        tracking_url)
 
 
 def owner_declined() -> str:
     """Owner said no to credit: polite, offer cash/UPI."""
-    return "Maaf kijiye, malik ne udhaar approval nahi diya. Cash/UPI par bhej dun?"
+    return "Shop credit wasn't approved. Would you like to pay by cash or UPI?"
 
 
 def short_stock(item: str, available: float) -> str:
     """Not enough on the shelf: state what exists, offer it."""
-    return f"{item} sirf {available:g} bacha hai. Utna bhej dun? HAAN ya NA likhiye."
+    return (f"Only {available:g} {item} available. Would you like that amount?"
+            " Reply YES or NO.")
 
 
 def bill_intro() -> str:
     """Default bill header (LLM text only ever replaces this if numbers match)."""
-    return "Aapka bill ready hai:"
+    return "Your order summary:"
 
 
 def delay_nudge_staff(order_id: int, minutes: int) -> str:
@@ -78,32 +88,32 @@ def delay_owner_alert(order_id: int, reason: str, reassigned_to: str) -> str:
                 f" {reassigned_to} ko de diya hai.")
 
 
-def status_packing_started() -> str:
+def status_packing_started(tracking_url: str = "") -> str:
     """Order confirmed and handed to the packer."""
-    return "Order pack ho raha hai. Taiyaar hote hi nikal jayega."
+    return _with_tracking("Your order is being packed.", tracking_url)
 
 
-def status_out_for_delivery(eta: str) -> str:
+def status_out_for_delivery(eta: str, tracking_url: str = "") -> str:
     """Rider left the shop."""
-    return f"Order nikal gaya hai! {eta} me pahunch jayega."
+    return _with_tracking(f"Your order is on the way. ETA: {eta}.", tracking_url)
 
 
-def status_delivered(mode: str) -> str:
+def status_delivered(mode: str, tracking_url: str = "") -> str:
     """Delivered + how it was paid."""
-    return f"Order pahunch gaya! {mode} me payment liya. Dhanyavaad!"
+    return _with_tracking(f"Delivered. Payment: {mode}. Thank you!", tracking_url)
 
 
-def delivery_problem() -> str:
+def delivery_problem(tracking_url: str = "") -> str:
     """Delivery failed, retry queued."""
-    return "Delivery me dikkat aayi, dobara bhej rahe hain. Thoda intezaar kijiye."
+    return _with_tracking("Delivery issue — we're arranging another attempt.",
+                          tracking_url)
 
 
 def delay_customer(eta_text: str, link: str) -> str:
     """L2: customer delay note with tracking link. No ids, phones or balances."""
-    return _fit(f"Delivery me deri ho rahi hai, {eta_text} pahunch jayega."
-                f" Track: {link}")
+    return _with_tracking(f"Your order is delayed. Updated ETA: {eta_text}.", link)
 
 
 def could_not_understand() -> str:
     """STT/LLM failed or nothing extractable: ask for a clean resend."""
-    return "Samajh nahi aaya. Item, wazan aur naap likhkar dobara bhejie."
+    return ("I couldn't read that order. Try: “2 kg sugar and 1 kg atta.”")

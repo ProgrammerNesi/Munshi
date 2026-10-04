@@ -82,12 +82,17 @@ def _rulebook_reasons(conn, order_id: int) -> list[str]:
 
 
 def board(db_path=None) -> dict:
-    """Orders grouped by status + the red needs-you strip (with reasons)."""
+    """Shop orders grouped by status, excluding synthetic seed history."""
     conn = get_conn(db_path)
     try:
         groups: dict[str, list] = {}
         needs: list = []
-        for o in conn.execute("SELECT * FROM orders ORDER BY id DESC LIMIT 100"):
+        rows = conn.execute(
+            "SELECT * FROM orders"
+            " WHERE COALESCE(transcript, '') NOT LIKE '[DEMO HISTORY]%'"
+            " ORDER BY id DESC LIMIT 100"
+        ).fetchall()
+        for o in rows:
             cust = conn.execute(
                 "SELECT name FROM customers WHERE id = ?",
                 (o["customer_id"],)).fetchone()
@@ -102,7 +107,20 @@ def board(db_path=None) -> dict:
                 if o["status"] == "PACK_MISMATCH":
                     card["reasons"] = [_latest_message(conn, o["id"], "mismatch")]
                 needs.append(card)
-        return {"groups": groups, "needs_you": needs}
+        active = sum(
+            len(orders) for status, orders in groups.items()
+            if status not in TERMINAL
+        )
+        return {
+            "groups": groups,
+            "needs_you": needs,
+            "summary": {
+                "orders": len(rows),
+                "active": active,
+                "needs_you": len(needs),
+                "delivered": len(groups.get("DELIVERED", [])),
+            },
+        }
     finally:
         conn.close()
 
@@ -110,6 +128,7 @@ def board(db_path=None) -> dict:
 def order_detail(order_id: int, db_path=None) -> dict:
     """Transcript, parsed lines, bill totals, full reasoning timeline."""
     from app import bill as bill_mod  # local: owner.py stays import-light
+    from app import tracking
 
     conn = get_conn(db_path)
     try:
@@ -128,12 +147,19 @@ def order_detail(order_id: int, db_path=None) -> dict:
             bill = bill_mod.build_bill(order_id, db_path)
         except Exception:
             bill = None
+        needs_reassign = conn.execute(
+            "SELECT 1 FROM attention_items WHERE order_id = ?"
+            " AND status = 'open' AND level >= 2 LIMIT 1",
+            (order_id,),
+        ).fetchone() is not None
         events = _events_for(conn, order_id)
         return {"id": o["id"], "status": o["status"],
                 "customer": cust["name"] if cust else "?",
                 "transcript": o["transcript"], "total": o["total"],
                 "payment_mode": o["payment_mode"], "updated_at": o["updated_at"],
                 "lines": lines, "bill": bill, "timeline": events,
+                "tracking_url": tracking.link(o["track_token"]),
+                "needs_reassign": needs_reassign and o["status"] == "PACKING",
                 "has_agent": any(e["kind"] in AGENT_KINDS for e in events)}
     finally:
         conn.close()

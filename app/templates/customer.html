@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,33 +8,41 @@
 </head>
 <body data-customer-id="{{ me.id }}">
 <header>
-  <div class="shop">Munshi · Wholesale</div>
-  <select id="who" aria-label="Customer">
-    {% for c in customers %}
-    <option value="{{ c.id }}" {% if c.id == me.id %}selected{% endif %}>{{ c.name }}</option>
-    {% endfor %}
-  </select>
-  <div id="activity" class="activity hidden"><span class="dot"></span><span id="activity-label"></span></div>
+  <div class="avatar">M</div>
+  <div class="contact">
+    <div class="shop">Munshi Wholesale</div>
+    <div class="presence">Shop chat · usually replies instantly</div>
+  </div>
+  <label class="switcher-label" title="Switch demo customer">
+    <span>Demo</span>
+    <select id="who" aria-label="Switch demo customer">
+      {% for c in customers %}
+      <option value="{{ c.id }}" {% if c.id == me.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
 </header>
 
-<div id="busy" class="banner hidden">Munshi is busy — aapka message line me hai, thoda rukiye.</div>
-<div id="offline" class="banner hidden">Server se connect nahi ho raha — net check kijiye. Aapka message yahin likhkar bhej sakte hain, send dabate hi jayega.</div>
+<div id="busy" class="banner hidden">One moment — your order is in the queue.</div>
+<div id="offline" class="banner hidden">Can't reach the shop right now. Check the local server and try again.</div>
 <div id="toast" class="banner hidden"></div>
 
 <main id="chat" aria-live="polite"></main>
-<section id="orders"></section>
+<div id="typing" class="typing hidden" aria-live="polite">
+  <span></span><span></span><span></span><span class="typing-label">Munshi is checking your order…</span>
+</div>
 
 <footer>
-  <div id="mic-hint" class="hidden">Mic nahi mila — neeche likhkar bhej dijiye, kaam chal jayega.</div>
+  <div id="mic-hint" class="hidden">Microphone unavailable. You can type your order instead.</div>
   <div class="bar">
-    <label class="icon-btn" title="Voice note file">📎
+    <label class="icon-btn attach" title="Attach a voice note">＋
       <input id="file" type="file" accept=".opus,.ogg,.m4a,.mp3,.wav,.webm,audio/*" hidden>
     </label>
-    <input id="text" type="text" placeholder="Yahan likhiye: 2 kilo cheeni…" autocomplete="off">
-    <button id="send" class="icon-btn" title="Bhejo">➤</button>
-    <button id="mic" class="icon-btn mic" title="Dabaakar boliye">🎤</button>
+    <input id="text" type="text" placeholder="Type a message" autocomplete="off" aria-label="Type a message">
+    <button id="send" class="send-btn" title="Send message" aria-label="Send message">➤</button>
+    <button id="mic" class="icon-btn mic" title="Hold to record a voice note" aria-label="Record voice note">🎙</button>
   </div>
-  <div class="hint">Mic dabaae rakhiye, chhodte hi bhej diya jayega.</div>
+  <div class="hint">Try: “2 kg sugar and 1 kg atta”</div>
 </footer>
 
 <script src="/static/customer.js"></script>

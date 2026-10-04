@@ -54,7 +54,7 @@ def build_bill(order_id: int, db_path: str | Path | None = None,
         conn.close()
 
 
-def render_text(bill: dict) -> str:
+def render_text(bill: dict, tracking_url: str = "") -> str:
     """Plain-text bill for the chat bubble (same numbers as the dict)."""
     parts = [messages.bill_intro()]
     for ln in bill["lines"]:
@@ -65,6 +65,8 @@ def render_text(bill: dict) -> str:
     parts.append(f"Delivery: {rupees(bill['delivery_fee'])}")
     parts.append(f"Total: {rupees(bill['total'])}")
     parts.append(bill["eta_text"])
+    if tracking_url:
+        parts.append(f"Track order: {tracking_url}")
     return "\n".join(parts)
 
 

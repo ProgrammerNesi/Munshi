@@ -37,6 +37,8 @@ TEST_CATALOG = [
      "aliases": ["maggi", "noodles", "instant noodles", "मैगी", "नूडल्स"]},
     {"item_id": 16, "name": "Salt (Tata Namak)", "unit": "kg",
      "aliases": ["namak", "salt", "tata namak", "tata salt", "नमक", "टाटा नमक"]},
+    {"item_id": 26, "name": "Detergent Powder", "unit": "kg",
+     "aliases": ["surf", "detergent", "washing powder"]},
 ]
 
 
@@ -197,5 +199,40 @@ def test_bad_json_twice_needs_retype(monkeypatch):
     def _boom(prompt, schema, **k):
         raise LLMBadOutput("not json")
     monkeypatch.setattr("app.ai.llm.generate_json", _boom)
-    d = ai_extract.extract_order("do kilo cheeni", catalog=TEST_CATALOG)
-    assert d.needs_retype is True and d.lines == []
+    d = ai_extract.extract_order(
+        "2 kg sugar and 1 kg atta", catalog=TEST_CATALOG)
+    assert not d.needs_retype
+    assert [(line.item_id, line.qty, line.status) for line in d.lines] == [
+        (1, 2, "ok"), (2, 1, "ok"),
+    ]
+
+
+def test_mock_empty_output_parses_clear_english_and_hinglish_order(
+        monkeypatch):
+    monkeypatch.setenv("MUNSHI_MOCK_AI", "1")
+    monkeypatch.setattr("app.ai.llm._MOCK_JSON", {"lines": [], "notes": ""})
+    d = ai_extract.extract_order(
+        "5 kilo pyaaz aur 10 wala surf excel bhej dena",
+        catalog=TEST_CATALOG,
+    )
+    assert not d.needs_retype
+    assert len(d.lines) == 2
+    assert d.lines[0].item_id is None
+    assert d.lines[0].qty == 5
+    assert d.lines[0].status == "unresolved"
+    assert d.lines[1].item_id == 26
+    assert d.lines[1].qty is None
+    assert d.lines[1].status == "qty_missing"
+
+
+def test_mock_empty_output_parses_normal_text_order(monkeypatch):
+    monkeypatch.setenv("MUNSHI_MOCK_AI", "1")
+    monkeypatch.setattr("app.ai.llm._MOCK_JSON", {"lines": [], "notes": ""})
+    d = ai_extract.extract_order(
+        "Please send 2 kg sugar and 1 kg atta",
+        catalog=TEST_CATALOG,
+    )
+    assert [(line.item_id, line.qty, line.unit, line.status)
+            for line in d.lines] == [
+        (1, 2, "kg", "ok"), (2, 1, "kg", "ok"),
+    ]

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from app import bill as bill_mod
 from app import engine, messages
+from app import tracking
 from app import rules as rules_mod
 from app.ai import extract as ai_extract
 from app.ai import stt
@@ -68,6 +69,16 @@ def _send(conn, customer_id, order_id, text) -> int:
         (customer_id, order_id, "out", text, None, _now()),
     )
     return cur.lastrowid
+
+
+def _tracking_url(conn, order_id: int) -> str:
+    """Build the customer's link from the order's private token."""
+    row = conn.execute(
+        "SELECT track_token FROM orders WHERE id = ?", (order_id,)
+    ).fetchone()
+    if row is None or not row["track_token"]:
+        raise engine.EngineError(f"Order #{order_id} has no tracking token.")
+    return tracking.link(row["track_token"])
 
 
 def _notify_owner(conn, order_id, text) -> None:
@@ -205,6 +216,20 @@ def _resolve_clarification(reply: str, pending: dict, catalog: list[dict]):
     line = draft[idx]
     kind = pending.get("type", "pick_item")
 
+    if kind == "ask_qty":
+        qty, reply_unit = ai_extract._parse_quantity(reply)
+        if qty is None:
+            return draft, None
+        item = next(
+            (entry for entry in catalog if entry["item_id"] == line["item_id"]),
+            None,
+        )
+        if item is None or (
+                reply_unit != "unknown" and reply_unit != item["unit"]):
+            return draft, None
+        line.update(qty=qty, unit=item["unit"], status="ok")
+        return draft, True
+
     if kind == "confirm_qty":
         words = set(re.findall(r"[a-z]+", reply.lower()))
         if words & _YES:
@@ -257,7 +282,7 @@ def _pending_question(pending: dict) -> str:
     if pending.get("type") == "confirm_qty":
         usual = pending.get("usual", 0)
         return messages.confirm_unusual_qty(line["item_name"], line["qty"], usual)
-    if line.get("qty") is None:
+    if pending.get("type") == "ask_qty":
         return messages.clarify_qty(line.get("item_name") or line["raw"])
     return messages.clarify_item(line["raw"], pending.get("candidates", []))
 
@@ -470,9 +495,14 @@ def _continue_clarification(conn, clar, msg, db_path):
     open_idx = next((i for i, ln in enumerate(draft_dicts)
                      if ln.get("item_id") is None or ln.get("qty") is None), None)
     if open_idx is not None:
-        still_open = {"type": "pick_item", "draft": draft_dicts,
-                      "line_index": open_idx,
-                      "candidates": draft_dicts[open_idx].get("candidates", [])}
+        open_line = draft_dicts[open_idx]
+        still_open = {
+            "type": "ask_qty" if open_line.get("item_id") is not None
+            else "pick_item",
+            "draft": draft_dicts,
+            "line_index": open_idx,
+            "candidates": open_line.get("candidates", []),
+        }
         conn.execute("UPDATE orders SET pending_json = ? WHERE id = ?",
                      (json.dumps(still_open), oid))
         _send(conn, customer_id, oid, _pending_question(still_open))
@@ -496,7 +526,8 @@ def _confirm_auto(conn, oid, customer_id, decision, db_path, rules) -> int:
     t0 = time.perf_counter()
     engine.apply_decision(oid, decision, db_path)
     engine.assign_staff(oid, db_path)
-    text = bill_mod.render_text(bill_mod.build_bill(oid, db_path, rules))
+    text = bill_mod.render_text(
+        bill_mod.build_bill(oid, db_path, rules), _tracking_url(conn, oid))
     _send(conn, customer_id, oid, text)
     _log(conn, oid, "munshi", "act",
          "Confirmed, stock reserved, packer assigned, bill sent.",
@@ -535,7 +566,8 @@ def _act(conn, oid, customer_id, decision, rule_lines, customer, stock,
         conn.execute(
             "UPDATE orders SET status = ?, updated_at = ? WHERE id = ?",
             (AWAITING_APPROVAL, _now(), oid))
-        _send(conn, customer_id, oid, messages.awaiting_owner())
+        _send(conn, customer_id, oid,
+              messages.awaiting_owner(_tracking_url(conn, oid)))
         _notify_owner(conn, oid, f"Order #{oid} needs approval: "
                       + "; ".join(decision.reasons))
         _log(conn, oid, "munshi", "act", "Held for owner approval.",
@@ -579,7 +611,9 @@ def owner_approve(order_id: int, owner_id: int, db_path=None) -> str:
     try:
         rules = rules_mod.load_rules()
         _send(conn, order["customer_id"], order_id,
-              bill_mod.render_text(bill_mod.build_bill(order_id, db_path, rules)))
+              bill_mod.render_text(
+                  bill_mod.build_bill(order_id, db_path, rules),
+                  tracking.link(order["track_token"])))
         conn.commit()
     finally:
         conn.close()

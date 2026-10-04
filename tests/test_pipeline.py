@@ -75,6 +75,36 @@ def test_normal_text_order_confirmed_with_bill(client):
     assert s["orders"][0]["bill"]["total"] == 2 * 45.0 + 40  # fee under 2000
 
 
+def test_mock_mode_still_processes_a_typed_order_and_shows_agent_trace(
+        client, monkeypatch):
+    client, db = client
+    llm.set_mock_json({"lines": [], "notes": ""})
+    state_client = client
+    monkeypatch.setenv("MUNSHI_AGENT", "1")
+    _post(state_client, 1, "2 kg sugar and 1 kg atta")
+
+    assert _wait_for(lambda: _latest_status(state_client, 1) == "PACKING")
+    state = _state(state_client, 1)
+    order = next(o for o in state["orders"] if o["status"] == "PACKING")
+    assert [(line["name"], line["qty"]) for line in order["lines"]] == [
+        ("Sugar", 2), ("Wheat Flour (Atta)", 1),
+    ]
+    assert not any("[DEMO HISTORY]" in message["text"]
+                   for message in state["messages"])
+    outbound = [message for message in state["messages"]
+                if message["direction"] == "out"
+                and message["order_id"] == order["id"]]
+    assert any("Your order summary:" in message["text"]
+               and "/t/" in message["text"] for message in outbound)
+    conn = get_conn(db)
+    try:
+        kinds = {row["kind"] for row in conn.execute(
+            "SELECT kind FROM events WHERE order_id = ?", (order["id"],))}
+    finally:
+        conn.close()
+    assert "agent_fallback" in kinds
+
+
 def test_credit_over_limit_waits_for_owner(client):
     client, db = client
     llm.set_mock_json({"lines": [_line("300 basmati", "basmati", 300, "kg"),
@@ -82,7 +112,7 @@ def test_credit_over_limit_waits_for_owner(client):
                        "notes": ""})
     _post(client, 4, "bada order")
     assert _wait_for(lambda: _latest_status(client, 4) == "AWAITING_APPROVAL")
-    assert any("malik" in t for t in _out_texts(client, 4))
+    assert any("shop approval" in t.lower() for t in _out_texts(client, 4))
     conn = get_conn(db)  # owner got an action-required notification
     try:
         n = conn.execute(
@@ -106,25 +136,90 @@ def test_ambiguous_item_clarified_then_resolved(client):
     assert any("Total:" in t for t in _out_texts(client, 6))
 
 
+def test_missing_quantity_then_customer_reply_completes_order(client, monkeypatch):
+    client, db = client
+    monkeypatch.setenv("MUNSHI_AGENT", "1")
+
+    _post(client, 1, "2 kg sugar and atta")
+    assert _wait_for(lambda: _latest_status(client, 1) == "CLARIFYING")
+    first = _state(client, 1)
+    assert any("How much Wheat Flour (Atta)" in message["text"]
+               for message in first["messages"]
+               if message["direction"] == "out")
+
+    _post(client, 1, "1 kg")
+    assert _wait_for(lambda: _latest_status(client, 1) == "PACKING")
+    state = _state(client, 1)
+    order = state["orders"][0]
+    assert [(line["name"], line["qty"]) for line in order["lines"]] == [
+        ("Sugar", 2), ("Wheat Flour (Atta)", 1),
+    ]
+    outbound = [message["text"] for message in state["messages"]
+                if message["direction"] == "out"
+                and message["order_id"] == order["id"]]
+    assert any("Your order is being packed." in text for text in outbound)
+    assert any("Your order summary:" in text and "/t/" in text
+               for text in outbound)
+    assert not any("couldn't read that order" in text.lower()
+                   for text in outbound)
+
+    conn = get_conn(db)
+    try:
+        events = {row["kind"] for row in conn.execute(
+            "SELECT kind FROM events WHERE order_id = ?", (order["id"],))}
+    finally:
+        conn.close()
+    assert {"agent_fallback", "decision", "act"} <= events
+
+    conn = get_conn(db)
+    try:
+        counts = {
+            str(row["item_id"]): row["qty"]
+            for row in conn.execute(
+                "SELECT item_id, qty FROM order_lines WHERE order_id = ?",
+                (order["id"],),
+            )
+        }
+    finally:
+        conn.close()
+    packed = client.post(
+        f"/api/tasks/packing/{order['id']}", json={"counts": counts})
+    assert packed.json()["status"] == "READY_FOR_DELIVERY"
+    assert client.post(
+        f"/api/tasks/delivery/{order['id']}/start").json()["status"] \
+        == "OUT_FOR_DELIVERY"
+    delivered = client.post(
+        f"/api/tasks/delivery/{order['id']}/delivered",
+        json={"payment_mode": "cash"},
+    )
+    assert delivered.json()["status"] == "DELIVERED"
+    assert client.get(
+        f"/api/track/{order['tracking_url'].rsplit('/', 1)[-1]}"
+    ).json()["status"] == "DELIVERED"
+
+
 def test_short_stock_message(client):
     client, _db = client
     llm.set_mock_json(
         {"lines": [_line("600 kilo cheeni", "cheeni", 600, "kg")], "notes": ""})
     _post(client, 1, "600 kilo cheeni")
     assert _wait_for(lambda: _latest_status(client, 1) == "REJECTED")
-    assert any("sirf 500" in t for t in _out_texts(client, 1))
+    assert any("only 500" in t.lower() for t in _out_texts(client, 1))
 
 
-def test_llm_failure_sends_could_not_understand(client, monkeypatch):
+def test_llm_failure_falls_back_to_clarifying_unknown_text(client, monkeypatch):
     client, db = client
+    monkeypatch.setenv("MUNSHI_MOCK_AI", "0")
+    monkeypatch.setenv("MUNSHI_AGENT", "0")
 
     def _boom(prompt, schema, **k):
         raise llm.LLMUnavailable("ollama down")
     monkeypatch.setattr("app.ai.llm.generate_json", _boom)
     _post(client, 1, "kuch to bolo")
-    assert _wait_for(
-        lambda: any("Samajh nahi aaya" in t for t in _out_texts(client, 1)))
-    conn = get_conn(db)  # order left in NEW, no crash, event logged
+    assert _wait_for(lambda: any("which item did you mean" in t.lower()
+                                 for t in _out_texts(client, 1)))
+    assert _state(client, 1)["orders"][0]["status"] == "CLARIFYING"
+    conn = get_conn(db)  # clarification remains active after the fallback.
     try:
         st = conn.execute(
             "SELECT status FROM orders WHERE customer_id = 1 AND UPPER(status)"
@@ -132,7 +227,7 @@ def test_llm_failure_sends_could_not_understand(client, monkeypatch):
         ).fetchone()["status"]
     finally:
         conn.close()
-    assert st == "NEW"
+    assert st == "CLARIFYING"
 
 
 def test_health_and_customer_page(client):
@@ -144,3 +239,15 @@ def test_health_and_customer_page(client):
     assert client.get("/customer/999").status_code == 404
     bad = client.post("/api/customer/1/message", data={})
     assert bad.status_code == 400
+
+
+def test_empty_audio_is_rejected_without_creating_a_chat_message(client):
+    client, _db = client
+    before = len(_state(client, 1)["messages"])
+    response = client.post(
+        "/api/customer/1/message",
+        files={"audio": ("mic.webm", b"", "audio/webm")},
+    )
+    assert response.status_code == 400
+    assert "audio recording is empty" in response.json()["detail"].lower()
+    assert len(_state(client, 1)["messages"]) == before

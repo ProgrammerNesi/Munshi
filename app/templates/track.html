@@ -1,24 +1,129 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Munshi · Order tracking</title>
-<link rel="stylesheet" href="/static/tasks.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Order tracking · Munshi</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.45 system-ui, sans-serif; color: #20251f; background: #f5f6f2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { padding: 18px 20px; color: white; background: #24583b; font-weight: 700; font-size: 20px; }
+    main { width: min(100% - 24px, 520px); margin: 18px auto; }
+    section, .notice { background: white; border-radius: 14px; padding: 18px; margin: 12px 0; box-shadow: 0 2px 8px #17221512; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    .stepper { list-style: none; padding: 0; margin: 0; }
+    .step { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 10px; min-height: 58px; }
+    .step:not(:last-child)::before { position: absolute; top: 25px; bottom: 0; left: 12px; width: 2px; background: #d6ddd6; content: ""; }
+    .mark { position: relative; z-index: 1; display: grid; width: 26px; height: 26px; place-items: center; border: 2px solid #c9d1c9; border-radius: 50%; background: white; color: #657064; font-size: 12px; }
+    .step.done .mark { border-color: #328052; background: #328052; color: white; }
+    .step.current .mark { outline: 3px solid #dcecdf; }
+    .step.current strong { color: #24583b; }
+    .step time { display: block; color: #717970; font-size: 13px; }
+    .eta, .awaiting { margin: 14px 0 0; color: #425044; }
+    .delay { border: 1px solid #e8c85e; background: #fff4c5; color: #543d00; }
+    .delay p { margin: 4px 0; }
+    .bill-row { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid #edf0eb; }
+    .bill-row:last-child { border-bottom: 0; }
+    .total { margin-top: 8px; padding-top: 12px; border-top: 1px solid #d9dfd7; font-weight: 700; }
+    .muted { color: #667066; }
+    .delivered { color: #24583b; font-size: 22px; font-weight: 700; }
+  </style>
 </head>
 <body>
-<main class="tasks">
-  <div class="task">
-    <h3>Aapka order</h3>
-    <p style="font-size:18px">{{ status }}</p>
-    {% if eta_at %}<p class="muted">Lagbhag: {{ eta_at }}</p>{% endif %}
-    <table>
-      {% for it in items %}
-      <tr><td>{{ it.name }}</td><td>{{ it.qty }} {{ it.unit }}</td></tr>
-      {% endfor %}
-    </table>
-  </div>
-</main>
-<script src="/static/demo.js"></script>
+  <header>{% if payload %}{{ payload.shop_name }}{% else %}Munshi Wholesale{% endif %}</header>
+  <main>
+    {% if unknown %}
+    <section role="status">
+      <h1>Tracking link not found</h1>
+      <p>Yeh link sahi nahi lag raha. Dukaan se naya tracking link maang lijiye.</p>
+      <p class="muted">This tracking link could not be found. Please ask the shop for a new one.</p>
+    </section>
+    {% else %}
+    <section>
+      <h1 id="status" aria-live="polite"></h1>
+      <div id="awaiting" class="awaiting" hidden></div>
+      <ol id="stepper" class="stepper" aria-label="Order progress"></ol>
+      <p id="eta" class="eta" hidden></p>
+    </section>
+    <section id="delay" class="delay" role="status" hidden>
+      <p>Der ho rahi hai. Thoda intezaar kijiye.</p>
+      <p>There is a delay. Please wait a little.</p>
+    </section>
+    <section>
+      <h2>Bill summary</h2>
+      <div id="items"></div>
+      <div id="total" class="bill-row total"></div>
+      <p id="payment" class="muted"></p>
+    </section>
+    <script id="initial-data" type="application/json">{{ payload | tojson }}</script>
+    <script>
+      (function () {
+        "use strict";
+        var token = {{ request.path.split('/')[-1] | tojson }};
+        var initial = JSON.parse(document.getElementById("initial-data").textContent);
+
+        function esc(value) {
+          return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+            return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c];
+          });
+        }
+        function time(value) {
+          if (!value) return "";
+          var parsed = new Date(value);
+          return isNaN(parsed.getTime()) ? "" : parsed.toLocaleString([], {
+            month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+          });
+        }
+        function render(data) {
+          var delivered = data.status === "DELIVERED";
+          document.getElementById("status").innerHTML = delivered
+            ? '<span class="delivered">Delivered</span>'
+            : esc(data.steps.filter(function (step) { return step.current; })[0]?.label || data.status);
+          var awaiting = document.getElementById("awaiting");
+          awaiting.textContent = data.awaiting || "";
+          awaiting.hidden = !data.awaiting;
+          var stepper = document.getElementById("stepper");
+          stepper.hidden = delivered;
+          stepper.innerHTML = delivered ? "" : data.steps.map(function (step) {
+            return '<li class="step ' + (step.done ? "done " : "") +
+              (step.current ? "current" : "") + '"><span class="mark">' +
+              (step.done ? "✓" : "·") + '</span><div><strong>' + esc(step.label) +
+              '</strong>' + (step.at ? '<time>' + esc(time(step.at)) + '</time>' : "") +
+              '</div></li>';
+          }).join("");
+
+          var eta = document.getElementById("eta");
+          eta.hidden = delivered || !data.eta_at;
+          eta.textContent = data.eta_at
+            ? "Approximate, may change · " + time(data.eta_at) : "";
+          document.getElementById("delay").hidden = delivered || !data.delayed;
+
+          document.getElementById("items").innerHTML = data.bill.lines.map(function (line) {
+            return '<div class="bill-row"><span>' + esc(line.name) + '</span><span>' +
+              esc(line.qty) + " " + esc(line.unit) + '</span></div>';
+          }).join("");
+          document.getElementById("total").innerHTML =
+            "<span>Total</span><span>₹" + esc(data.bill.total) + "</span>";
+          document.getElementById("payment").textContent =
+            "Payment mode: " + (data.bill.payment_mode || "On delivery");
+        }
+        function poll() {
+          fetch("/api/track/" + encodeURIComponent(token), {cache: "no-store"})
+            .then(function (response) {
+              if (!response.ok) throw new Error("Tracking update unavailable.");
+              return response.json();
+            })
+            .then(render)
+            .catch(function () {});
+        }
+        render(initial);
+        window.setInterval(poll, 5000);
+      }());
+    </script>
+    {% endif %}
+  </main>
 </body>
 </html>

@@ -142,7 +142,7 @@ def test_tick_track_and_skip_endpoints(db, monkeypatch):
         conn.close()
     assert token and len(token) >= 16
     page = client.get(f"/t/{token}")
-    assert page.status_code == 200 and "Pack ho raha hai" in page.text
+    assert page.status_code == 200 and "Packing" in page.text
     for secret in ("9800000001", "outstanding", "4500", "Ramesh"):
         assert secret not in page.text  # no ids, phones, names, balances
     assert client.get("/t/nope").status_code == 404
